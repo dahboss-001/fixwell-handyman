@@ -2,11 +2,13 @@
 -- FIXWELL HANDYMAN - PATCH 009
 -- Artisan team accounts: a company (owner artisan) with several
 -- workers (approved artisans with their own logins).
--- ADDITIVE ONLY: new tables/columns/functions/policies, nothing
--- dropped or rewritten. Safe to run after patches 001-008.
+-- ADDITIVE ONLY: new tables/functions/policies, nothing dropped
+-- or rewritten. Safe to run after patches 001-008, and safe to
+-- re-run: tables use IF NOT EXISTS and every policy is dropped
+-- (if present) before it is created.
 -- ============================================================
 
--- ---------- 1) artisan_teams (one company per owner artisan) ----------
+-- ---------- 1) tables first ----------
 create table if not exists artisan_teams (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid references profiles(id) on delete cascade,
@@ -15,25 +17,6 @@ create table if not exists artisan_teams (
   unique (owner_id)
 );
 
-alter table artisan_teams enable row level security;
-
-create policy "teams insert approved owner" on artisan_teams for insert
-  with check (
-    owner_id = auth.uid() and not is_suspended()
-    and exists (select 1 from artisan_applications
-                where user_id = auth.uid() and status = 'approved')
-  );
-create policy "teams read owner member admin" on artisan_teams for select
-  using (
-    owner_id = auth.uid() or is_admin()
-    or id in (select team_id from artisan_team_members where member_id = auth.uid())
-  );
-create policy "teams update owner" on artisan_teams for update
-  using (owner_id = auth.uid() and not is_suspended());
-create policy "teams delete owner" on artisan_teams for delete
-  using (owner_id = auth.uid() and not is_suspended());
-
--- ---------- 2) artisan_team_members ----------
 -- member_name is a snapshot of the worker's profile name at add time
 -- (profiles rows are only readable by their owner or an admin).
 create table if not exists artisan_team_members (
@@ -45,13 +28,41 @@ create table if not exists artisan_team_members (
   unique (team_id, member_id)
 );
 
+alter table artisan_teams enable row level security;
 alter table artisan_team_members enable row level security;
 
+-- ---------- 2) policies (after BOTH tables exist) ----------
+drop policy if exists "teams insert approved owner" on artisan_teams;
+create policy "teams insert approved owner" on artisan_teams for insert
+  with check (
+    owner_id = auth.uid() and not is_suspended()
+    and exists (select 1 from artisan_applications
+                where user_id = auth.uid() and status = 'approved')
+  );
+
+drop policy if exists "teams read owner member admin" on artisan_teams;
+create policy "teams read owner member admin" on artisan_teams for select
+  using (
+    owner_id = auth.uid() or is_admin()
+    or id in (select team_id from artisan_team_members where member_id = auth.uid())
+  );
+
+drop policy if exists "teams update owner" on artisan_teams;
+create policy "teams update owner" on artisan_teams for update
+  using (owner_id = auth.uid() and not is_suspended());
+
+drop policy if exists "teams delete owner" on artisan_teams;
+create policy "teams delete owner" on artisan_teams for delete
+  using (owner_id = auth.uid() and not is_suspended());
+
+drop policy if exists "members read owner member admin" on artisan_team_members;
 create policy "members read owner member admin" on artisan_team_members for select
   using (
     member_id = auth.uid() or is_admin()
     or team_id in (select id from artisan_teams where owner_id = auth.uid())
   );
+
+drop policy if exists "members delete owner or self" on artisan_team_members;
 create policy "members delete owner or self" on artisan_team_members for delete
   using (
     member_id = auth.uid()
@@ -99,6 +110,7 @@ $$;
 
 -- ---------- 4) workers can SEE their company's jobs (read-only) ----------
 -- Company jobs stay assigned to the owner account; members get visibility.
+drop policy if exists "bookings team member read" on bookings;
 create policy "bookings team member read" on bookings for select
   using (
     artisan_id in (
