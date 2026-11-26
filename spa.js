@@ -187,6 +187,8 @@ async function bookView(query) {
           <select id="bkCity">${CONFIG.cities.map(c => `<option${c === city ? " selected" : ""}>${c}</option>`).join("")}</select>
         </label>
         <label>Area / neighbourhood<input type="text" id="bkArea" required placeholder="e.g. GRA, Phase 2"></label>
+        <label>Phone / WhatsApp number<input type="tel" id="bkPhone" required placeholder="e.g. 0803 000 0000"></label>
+        <p class="modal-note">Your number stays hidden until an artisan accepts your job or unlocks it with a credit.</p>
         <label>How urgent is it?
           <select id="bkUrgency">
             <option${urgent ? "" : " selected"}>Flexible, this week is fine</option>
@@ -209,6 +211,7 @@ async function bookView(query) {
         area: document.getElementById("bkArea").value.trim(),
         urgency: document.getElementById("bkUrgency").value,
         description: document.getElementById("bkDesc").value.trim(),
+        phone: document.getElementById("bkPhone").value.trim(),
       });
       showApp(`
         <div class="panel-card center">
@@ -230,7 +233,7 @@ async function dashboardView() {
   const u = await DB.user();
   if (!u) { location.hash = "#/auth"; return; }
   const p = await DB.profile();
-  const [bookings, subs] = await Promise.all([DB.myBookings(), DB.mySubscriptions()]);
+  const [bookings, subs, walletBal] = await Promise.all([DB.myBookings(), DB.mySubscriptions(), DB.walletBalance()]);
   const activeSub = subs.find(s => s.status === "active");
 
   const rows = await Promise.all(bookings.map(async b => {
@@ -277,6 +280,7 @@ async function dashboardView() {
         <a href="#/book" class="btn btn-primary nav-route">+ New booking</a>
       </div>
       ${activeSub ? `<div class="sub-strip">🗓️ Active plan: <b>${esc(activeSub.plan)}</b> (${esc(activeSub.billing)}, ${fmt(activeSub.amount)}) <a href="#plans" class="nav-anchor">Change</a></div>` : ""}
+      <div class="sub-strip">🪙 Credit wallet: <b>${walletBal} credit${walletBal === 1 ? "" : "s"}</b> <a href="#/credits" class="nav-route">Buy credits</a></div>
       ${bookings.length ? rows.join("") : `
         <div class="empty-card">
           <span class="popup-emoji">🧰</span>
@@ -420,13 +424,24 @@ async function artisanView(query) {
     return;
   }
 
-  // approved: leads + membership
-  const leads = await DB.listLeads();
+  // approved: leads + membership + credits
+  const [leads, walletBal, unlocks] = await Promise.all([DB.listLeads(), DB.walletBalance(), DB.myUnlocks()]);
   const mine = leads.filter(b => b.artisan_id === p.id && !["completed", "cancelled"].includes(b.status));
   const open = leads.filter(b => b.status === "received" && b.city === p.city);
   const prePlan = query.plan != null ? CONFIG.artisanPlans[+query.plan] : null;
+  const contacts = {};
+  await Promise.all(leads.filter(b => unlocks.has(b.id)).map(async b => {
+    contacts[b.id] = await DB.contactFor(b.id);
+  }));
+  const cost = CONFIG.credits.unlockCost;
 
-  const leadCard = b => `
+  const leadCard = b => {
+    const unlocked = unlocks.has(b.id);
+    const c = contacts[b.id];
+    const contactBit = unlocked && c
+      ? `<p class="contact-line">📞 <b>${esc(c.name || "Customer")}</b> · <a href="tel:${esc(c.phone || "")}">${esc(c.phone || "")}</a></p>`
+      : `<button class="btn btn-outline btn-sm" data-unlock="${b.id}">🔒 Unlock contact (${cost} credit${cost === 1 ? "" : "s"})</button>`;
+    return `
     <div class="job-card">
       <div class="job-head">
         <span class="svc-icon">${svcIcon(b.service)}</span>
@@ -436,6 +451,7 @@ async function artisanView(query) {
       </div>
       <p class="job-desc">${esc(b.description)}</p>
       <p class="job-meta">Urgency: ${esc(b.urgency)} · Customer: ${esc(b.customer_name || "")}</p>
+      ${contactBit}
       ${b.status === "received" ? `<button class="btn btn-primary btn-sm" data-accept="${b.id}">Accept this job</button>` : ""}
       ${b.status === "assigned" ? `
         <form class="quote-form" data-quote="${b.id}">
@@ -445,6 +461,7 @@ async function artisanView(query) {
       ${b.status === "in_progress" ? `<button class="btn btn-primary btn-sm" data-complete="${b.id}">Mark job completed</button>` : ""}
       ${b.status === "quote_sent" ? `<p class="job-meta">Quote of ${fmt(b.quote_amount)} sent. Waiting for the customer to approve.</p>` : ""}
     </div>`;
+  };
 
   showApp(`
     <div class="dash">
@@ -455,6 +472,7 @@ async function artisanView(query) {
         </div>
       </div>
       <div class="sub-strip">💳 Membership: <b>${membership ? esc(membership.plan) : "Starter (free)"}</b> ${membership ? "" : `<a href="#artisans" class="nav-anchor">Upgrade</a>`}</div>
+      <div class="sub-strip">🪙 Credit wallet: <b>${walletBal} credit${walletBal === 1 ? "" : "s"}</b> <a href="#/credits" class="nav-route">Buy credits</a></div>
       ${prePlan && (!membership || membership.plan !== prePlan.name) ? `
         <div class="sub-strip">Picked plan: <b>${esc(prePlan.name)}</b> (${esc(prePlan.price)} ${esc(prePlan.period)})
           <button class="btn btn-primary btn-sm" id="confirmPlan" data-plan="${esc(prePlan.name)}" data-amount="${prePlan.amount}">Confirm plan</button>
@@ -485,6 +503,80 @@ async function artisanView(query) {
     try { await DB.completeBooking(b.dataset.complete); toast("Marked completed. Nice work!"); artisanView({}); }
     catch (e) { toast(e.message, true); }
   }));
+  document.querySelectorAll("[data-unlock]").forEach(b => b.addEventListener("click", async () => {
+    b.disabled = true;
+    try {
+      const r = await DB.unlockContact(b.dataset.unlock, CONFIG.credits.unlockCost);
+      toast(r.charged ? `Contact unlocked for ${r.charged} credit${r.charged === 1 ? "" : "s"}.` : "Contact unlocked.");
+      artisanView({});
+    } catch (e) {
+      b.disabled = false;
+      if (/not enough credits/i.test(e.message || "")) {
+        toast("Not enough credits. Top up your wallet first.", true);
+        location.hash = "#/credits";
+      } else {
+        toast(e.message, true);
+      }
+    }
+  }));
+}
+
+/* ================= CREDITS / WALLET VIEW ================= */
+async function creditsView() {
+  const u = await DB.user();
+  if (!u) { location.hash = "#/auth"; return; }
+  const p = await DB.profile();
+  const [bal, txs] = await Promise.all([DB.walletBalance(), DB.myTransactions()]);
+  const home = p.role === "artisan" ? "#/artisan" : "#/dashboard";
+
+  const txRow = t => `
+    <div class="tx-row">
+      <span class="tx-kind">${t.kind === "purchase" ? "🛒" : t.kind === "spend" ? "🔓" : "⚙️"}</span>
+      <div class="tx-main">
+        <b>${esc(t.note || (t.kind === "purchase" ? "Credit purchase" : t.kind === "spend" ? "Contact unlock" : "Adjustment"))}</b>
+        <small>${new Date(t.created_at).toLocaleString()}${t.price_ngn ? " · " + fmt(t.price_ngn) : ""}${t.status === "pending" ? " · awaiting approval" : t.status === "rejected" ? " · declined" : ""}</small>
+      </div>
+      <span class="tx-amt ${t.credits > 0 ? "in" : "out"}">${t.credits > 0 ? "+" : ""}${t.credits}</span>
+    </div>`;
+
+  showApp(`
+    <div class="dash">
+      <div class="dash-head">
+        <div><h2>Credit wallet</h2><p class="app-sub">${esc(p.full_name)} · credits unlock customer contacts on job leads.</p></div>
+        <a href="${home}" class="btn btn-outline btn-sm nav-route">← Back</a>
+      </div>
+      <div class="wallet-hero">
+        <span class="wallet-bal">${bal}</span>
+        <span class="wallet-label">credit${bal === 1 ? "" : "s"} available · unlocking a customer contact costs ${CONFIG.credits.unlockCost} credit${CONFIG.credits.unlockCost === 1 ? "" : "s"}</span>
+      </div>
+      ${CONFIG.credits.testMode ? `<div class="testmode-banner">⚠️ TEST MODE - no payment is taken. You pick a pack, the Fixwell team confirms it manually, and the credits land in your wallet.</div>` : ""}
+      <h3 class="dash-sec">Buy credits</h3>
+      <div class="credit-packs">
+        ${CONFIG.credits.packages.map((k, i) => `
+          <div class="credit-pack${k.popular ? " popular" : ""}">
+            ${k.popular ? `<span class="pack-badge">Popular</span>` : ""}
+            <b class="pack-credits">${k.credits}</b>
+            <span class="pack-label">${esc(k.label)} pack</span>
+            <span class="pack-price">${fmt(k.priceNGN)}</span>
+            <button class="btn btn-primary btn-sm" data-buy="${i}">Get ${k.credits} credits</button>
+          </div>`).join("")}
+      </div>
+      <h3 class="dash-sec">History</h3>
+      ${txs.length ? txs.map(txRow).join("") : `<p class="app-sub">No credit activity yet.</p>`}
+    </div>`);
+
+  document.querySelectorAll("[data-buy]").forEach(b => b.addEventListener("click", async () => {
+    const pkg = CONFIG.credits.packages[+b.dataset.buy];
+    b.disabled = true; b.textContent = "Sending…";
+    try {
+      await DB.purchaseCredits(pkg);
+      toast(`Request sent: ${pkg.credits} credits (${fmt(pkg.priceNGN)}). It appears in your history as pending.`);
+      creditsView();
+    } catch (e) {
+      toast(e.message, true);
+      b.disabled = false; b.textContent = `Get ${pkg.credits} credits`;
+    }
+  }));
 }
 
 /* ================= ADMIN VIEW ================= */
@@ -493,7 +585,11 @@ async function adminView() {
   if (!u) { location.hash = "#/auth"; return; }
   const p = await DB.profile();
   if (!p || !p.is_admin) { showApp(`<div class="panel-card center"><h2>Admins only</h2><p>This area is for the Fixwell team.</p><a href="#/" class="btn btn-primary nav-route">Back to site</a></div>`); return; }
-  const [apps, bookings] = await Promise.all([DB.listApplications(), DB.listLeads ? DB.client.from("bookings").select("*").order("created_at", { ascending: false }).then(r => r.data || []) : []]);
+  const [apps, bookings, purchases] = await Promise.all([
+    DB.listApplications(),
+    DB.client.from("bookings").select("*").order("created_at", { ascending: false }).then(r => r.data || []),
+    DB.pendingPurchases(),
+  ]);
   showApp(`
     <div class="dash">
       <div class="dash-head"><div><h2>Admin</h2><p class="app-sub">Screen artisans and monitor bookings.</p></div></div>
@@ -510,6 +606,18 @@ async function adminView() {
               <button class="btn btn-outline btn-sm" data-decline-app="${a.id}">Decline</button>
             </div>` : ""}
         </div>`).join("") : `<p class="app-sub">No applications yet.</p>`}
+      <h3 class="dash-sec">Credit purchases (${purchases.length} pending)</h3>
+      ${CONFIG.credits.testMode ? `<div class="testmode-banner">⚠️ TEST MODE - no payment is processed. Approving a purchase simply credits the wallet.</div>` : ""}
+      ${purchases.length ? purchases.map(t => `
+        <div class="job-card">
+          <div class="job-head">
+            <div class="job-title"><b>${esc(t.buyer_name)}</b><span class="job-meta">${t.credits} credits · ${fmt(t.price_ngn || 0)} · ${new Date(t.created_at).toLocaleString()}</span></div>
+          </div>
+          <div class="quote-actions">
+            <button class="btn btn-primary btn-sm" data-approve-tx="${t.id}">Approve & credit wallet</button>
+            <button class="btn btn-outline btn-sm" data-reject-tx="${t.id}">Decline</button>
+          </div>
+        </div>`).join("") : `<p class="app-sub">No pending purchases.</p>`}
       <h3 class="dash-sec">All bookings (${bookings.length})</h3>
       ${bookings.length ? bookings.map(b => `
         <div class="job-card">
@@ -529,6 +637,14 @@ async function adminView() {
     try { await DB.setApplicationStatus(b.dataset.declineApp, "declined"); toast("Application declined."); adminView(); }
     catch (e) { toast(e.message, true); }
   }));
+  document.querySelectorAll("[data-approve-tx]").forEach(b => b.addEventListener("click", async () => {
+    try { await DB.approvePurchase(b.dataset.approveTx); toast("Purchase approved, wallet credited."); adminView(); }
+    catch (e) { toast(e.message, true); }
+  }));
+  document.querySelectorAll("[data-reject-tx]").forEach(b => b.addEventListener("click", async () => {
+    try { await DB.rejectPurchase(b.dataset.rejectTx); toast("Purchase declined."); adminView(); }
+    catch (e) { toast(e.message, true); }
+  }));
 }
 
 /* ================= ROUTER ================= */
@@ -542,6 +658,7 @@ async function router() {
       case "subscribe": return await subscribeView(r.query);
       case "dashboard": return await dashboardView();
       case "artisan": return await artisanView(r.query);
+      case "credits": return await creditsView();
       case "admin": return await adminView();
       default:
         showLanding();

@@ -22,6 +22,7 @@ const DB = {
       await this.client.from("profiles").upsert({
         id: data.user.id, full_name: fullName, role, city,
       });
+      await this.client.from("wallets").upsert({ user_id: data.user.id, balance: 0 }, { onConflict: "user_id", ignoreDuplicates: true });
       this._profileCache = null;
     }
     return data;
@@ -54,7 +55,7 @@ const DB = {
   },
 
   /* ---------- bookings ---------- */
-  async createBooking({ service, city, area, urgency, description }) {
+  async createBooking({ service, city, area, urgency, description, phone }) {
     const p = await this.profile();
     const ref = "FW-" + Math.random().toString(36).slice(2, 6).toUpperCase();
     const { data, error } = await this.client.from("bookings").insert({
@@ -62,6 +63,10 @@ const DB = {
       service, city, area, urgency, description, status: "received",
     }).select().single();
     if (error) throw error;
+    const { error: cErr } = await this.client.from("booking_contacts").insert({
+      booking_id: data.id, name: p.full_name, phone,
+    });
+    if (cErr) throw cErr;
     return data;
   },
 
@@ -176,6 +181,78 @@ const DB = {
     const { data } = await this.client.from("memberships")
       .select("*").eq("user_id", p.id).order("created_at", { ascending: false }).limit(1);
     return data && data[0] ? data[0] : null;
+  },
+
+  /* ---------- credits & contact unlocks ---------- */
+  async walletBalance() {
+    const p = await this.profile();
+    const { data } = await this.client.from("wallets").select("balance").eq("user_id", p.id).limit(1);
+    return data && data[0] ? data[0].balance : 0;
+  },
+
+  async myTransactions() {
+    const p = await this.profile();
+    const { data, error } = await this.client.from("credit_transactions")
+      .select("*").eq("user_id", p.id).order("created_at", { ascending: false }).limit(50);
+    if (error) throw error;
+    return data || [];
+  },
+
+  // Test-mode purchase: goes in as pending, admin approves manually.
+  async purchaseCredits(pkg) {
+    const p = await this.profile();
+    const { data, error } = await this.client.from("credit_transactions").insert({
+      user_id: p.id, kind: "purchase", credits: pkg.credits,
+      price_ngn: pkg.priceNGN, status: "pending",
+      note: pkg.label + " pack (test mode)",
+    }).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async pendingPurchases() {
+    const { data, error } = await this.client.from("credit_transactions")
+      .select("*").eq("kind", "purchase").eq("status", "pending")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    const rows = data || [];
+    // attach buyer names for the admin list
+    const ids = [...new Set(rows.map(r => r.user_id))];
+    if (!ids.length) return rows;
+    const { data: profs } = await this.client.from("profiles").select("id, full_name").in("id", ids);
+    const names = {};
+    (profs || []).forEach(pr => { names[pr.id] = pr.full_name; });
+    rows.forEach(r => { r.buyer_name = names[r.user_id] || "Customer"; });
+    return rows;
+  },
+
+  async approvePurchase(txId) {
+    const { error } = await this.client.rpc("approve_credit_purchase", { p_tx: txId });
+    if (error) throw error;
+  },
+
+  async rejectPurchase(txId) {
+    const { error } = await this.client.rpc("reject_credit_purchase", { p_tx: txId });
+    if (error) throw error;
+  },
+
+  async myUnlocks() {
+    const p = await this.profile();
+    const { data } = await this.client.from("contact_unlocks").select("booking_id").eq("user_id", p.id);
+    return new Set((data || []).map(r => r.booking_id));
+  },
+
+  async contactFor(bookingId) {
+    const { data } = await this.client.from("booking_contacts")
+      .select("name, phone").eq("booking_id", bookingId).limit(1);
+    return data && data[0] ? data[0] : null;
+  },
+
+  // Atomic on the server: balance check, deduction, unlock record in one call.
+  async unlockContact(bookingId, cost) {
+    const { data, error } = await this.client.rpc("spend_credits", { p_booking_id: bookingId, p_cost: cost });
+    if (error) throw error;
+    return data;
   },
 
   /* ---------- reviews ---------- */

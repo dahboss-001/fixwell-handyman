@@ -76,6 +76,19 @@ const CONFIG = {
       features: ["Everything in Pro", "Up to 5 crew profiles", "Featured listing", "Priority support"] },
   ],
 
+  // CREDITS - placeholder pricing in NGN, edit freely.
+  // testMode stays true until real payment processing is wired:
+  // purchases go in as pending and an admin approves them manually.
+  credits: {
+    unlockCost: 1,           // credits to unlock a customer's contact on a lead
+    testMode: true,
+    packages: [
+      { credits: 5,  priceNGN: 1500, label: "Starter",  popular: false },
+      { credits: 15, priceNGN: 4000, label: "Active",   popular: true },
+      { credits: 40, priceNGN: 9000, label: "Crew",     popular: false },
+    ],
+  },
+
   faqs: [
     { q: "How do I pay for a job?", a: "You approve a quote in your account before work starts, then pay the artisan directly when the job is done. Bank transfer or cash, whatever suits you. We never take online payments on this site." },
     { q: "How are artisans screened?", a: "Before artisans join, we confirm their ID, assess their skill and check references on past work. New artisans start with supervised trial jobs. Confirm this matches your actual process and edit it here if needed." },
