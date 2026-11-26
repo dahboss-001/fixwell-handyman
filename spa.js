@@ -154,8 +154,11 @@ async function renderNavAuth() {
   const p = await DB.profile();
   const dash = p && p.is_admin ? "#/admin" : (p && p.role === "artisan" ? "#/artisan" : "#/dashboard");
   slot.innerHTML = `
+    <a href="#/notifications" class="nav-route nav-bell" id="navBell" title="Notifications">🔔<span class="notif-badge" id="notifBadge" hidden></span></a>
     <a href="${dash}" class="nav-route nav-dash">👤 ${esc((p && p.full_name) || "My account")}</a>
+    <a href="#/profile" class="nav-route nav-gear" title="My profile">⚙️</a>
     <button class="btn btn-outline btn-sm" id="navSignOut">Sign out</button>`;
+  updateNotifBadge();
   document.getElementById("navSignOut").addEventListener("click", async () => {
     await DB.signOut();
     await renderNavAuth();
@@ -525,6 +528,76 @@ async function artisanView(query) {
   }));
 }
 
+/* ================= NOTIFICATIONS ================= */
+let notifTimer = null;
+
+async function updateNotifBadge() {
+  const badge = document.getElementById("notifBadge");
+  if (!badge) return;
+  const n = await DB.unreadCount().catch(() => 0);
+  badge.hidden = !n;
+  badge.textContent = n > 99 ? "99+" : n;
+}
+
+async function notificationsView() {
+  const u = await DB.user();
+  if (!u) { location.hash = "#/auth"; return; }
+  const items = await DB.myNotifications();
+  showApp(`
+    <div class="panel-card chat-card">
+      <a href="#/" class="app-back nav-route">← Back</a>
+      <h2>🔔 Notifications</h2>
+      ${items.length ? `<div class="notif-list">${items.map(n => `
+        <a class="notif-item ${n.read ? "" : "unread"}" href="${esc(n.link || "#/")}">
+          <span class="notif-text">${esc(n.text)}</span>
+          <small>${new Date(n.created_at).toLocaleString()}</small>
+        </a>`).join("")}</div>`
+      : `<p class="app-sub center" style="margin-top:24px">Nothing yet. Booking updates, quotes and new messages show up here.</p>`}
+    </div>`);
+  await DB.markAllRead();
+  updateNotifBadge();
+}
+
+/* ================= PROFILE ================= */
+async function profileView() {
+  const u = await DB.user();
+  if (!u) { location.hash = "#/auth"; return; }
+  const p = await DB.profile();
+  const dash = p.is_admin ? "#/admin" : (p.role === "artisan" ? "#/artisan" : "#/dashboard");
+  showApp(`
+    <div class="panel-card chat-card">
+      <a href="${dash}" class="app-back nav-route">← Back to my dashboard</a>
+      <h2>⚙️ My profile</h2>
+      <p class="app-sub">${esc(u.email || "")} · ${esc(p.role || "customer")}${p.is_admin ? " · admin" : ""} · joined ${new Date(p.created_at).toLocaleDateString()}</p>
+      <form id="profileForm" class="profile-form">
+        <label>Full name
+          <input type="text" id="pfName" required maxlength="80" value="${esc(p.full_name || "")}">
+        </label>
+        <label>Your city
+          <select id="pfCity">
+            ${CONFIG.cities.map(c => `<option ${c === p.city ? "selected" : ""}>${esc(c)}</option>`).join("")}
+          </select>
+        </label>
+        <button type="submit" class="btn btn-primary btn-sm">Save changes</button>
+      </form>
+      <p class="app-sub" style="margin-top:14px">Email and password changes: contact support for now.</p>
+    </div>`);
+  document.getElementById("profileForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    try {
+      await DB.updateProfile({ full_name: document.getElementById("pfName").value.trim(), city: document.getElementById("pfCity").value });
+      toast("Profile saved.");
+      await renderNavAuth();
+      profileView();
+    } catch (err) { toast(err.message, true); }
+  });
+}
+
+/* ================= SUSPENDED ================= */
+function suspendedView() {
+  showApp(`<div class="panel-card center"><h2>Account suspended</h2><p>Your Fixwell account has been suspended. If you think this is a mistake, reply to any message from the Fixwell team.</p></div>`);
+}
+
 /* ================= MESSAGING (one thread per booking) ================= */
 let chatTimer = null;
 
@@ -560,10 +633,12 @@ async function chatView(query) {
       <h2>💬 ${esc(b.service)} · ${esc(b.ref)}</h2>
       <p class="app-sub">Chat with ${esc(other)} about this job.</p>
       <div class="chat-list" id="chatList"></div>
-      <form id="chatForm" class="chat-form">
+      ${p.is_admin && b.customer_id !== p.id && b.artisan_id !== p.id
+        ? `<p class="app-sub center" style="margin-top:10px">👁️ You are viewing this conversation as admin (read-only).</p>`
+        : `<form id="chatForm" class="chat-form">
         <input type="text" id="chatInput" required maxlength="500" placeholder="Type a message…" autocomplete="off">
         <button type="submit" class="btn btn-primary btn-sm">Send</button>
-      </form>
+      </form>`}
     </div>`);
   await paint();
 
@@ -573,7 +648,9 @@ async function chatView(query) {
     paint().catch(() => {});
   }, 8000);
 
-  document.getElementById("chatForm").addEventListener("submit", async e => {
+  const chatForm = document.getElementById("chatForm");
+  if (!chatForm) return; // admin read-only view
+  chatForm.addEventListener("submit", async e => {
     e.preventDefault();
     const input = document.getElementById("chatInput");
     const body = input.value.trim();
@@ -707,11 +784,19 @@ async function adminView() {
   if (!u) { location.hash = "#/auth"; return; }
   const p = await DB.profile();
   if (!p || !p.is_admin) { showApp(`<div class="panel-card center"><h2>Admins only</h2><p>This area is for the Fixwell team.</p><a href="#/" class="btn btn-primary nav-route">Back to site</a></div>`); return; }
-  const [apps, bookings, purchases] = await Promise.all([
+  const [apps, bookings, purchases, users, artisans, audit, allReviews] = await Promise.all([
     DB.listApplications(),
     DB.client.from("bookings").select("*").order("created_at", { ascending: false }).then(r => r.data || []),
     DB.pendingPurchases(),
+    DB.adminListUsers(),
+    DB.adminListApprovedArtisans(),
+    DB.adminAuditLog(),
+    DB.adminAllReviews(),
   ]);
+  const openStatuses = ["received", "assigned", "quote_sent", "in_progress"];
+  const artisanOpts = b => artisans
+    .map(a => `<option value="${a.user_id}" ${a.user_id === b.artisan_id ? "disabled" : ""}>${esc(a.full_name)} (${esc(a.trade)}, ${esc(a.city)})</option>`)
+    .join("");
   showApp(`
     <div class="dash">
       <div class="dash-head"><div><h2>Admin</h2><p class="app-sub">Screen artisans and monitor bookings.</p></div></div>
@@ -749,7 +834,42 @@ async function adminView() {
             <span class="ref-chip">${esc(b.ref)}</span>
             ${badge(b.status)}
           </div>
+          <div class="quote-actions">
+            ${b.artisan_id ? `<a href="#/chat?booking=${b.id}" class="btn btn-outline btn-sm nav-route">👁️ View chat</a>` : ""}
+            ${openStatuses.includes(b.status) ? `
+              <button class="btn btn-outline btn-sm" data-cancel-booking="${b.id}" data-ref="${esc(b.ref)}">Cancel</button>
+              <select class="reassign-sel" id="reassign-${b.id}">${artisanOpts(b)}</select>
+              <button class="btn btn-outline btn-sm" data-reassign-booking="${b.id}" data-ref="${esc(b.ref)}">Reassign</button>` : ""}
+          </div>
         </div>`).join("") : `<p class="app-sub">No bookings yet.</p>`}
+      <h3 class="dash-sec">Users (${users.length})</h3>
+      ${users.length ? users.map(x => `
+        <div class="job-card">
+          <div class="job-head">
+            <div class="job-title"><b>${esc(x.full_name || "(no name)")}</b><span class="job-meta">${esc(x.role || "customer")} · ${esc(x.city || "")}${x.is_admin ? " · admin" : ""}</span></div>
+            ${x.suspended ? `<span class="status-badge st-cancelled">Suspended</span>` : ""}
+          </div>
+          ${!x.is_admin ? `<div class="quote-actions">
+            <button class="btn btn-outline btn-sm" data-suspend="${x.id}" data-name="${esc(x.full_name || "")}" data-flag="${x.suspended ? "0" : "1"}">${x.suspended ? "Reinstate" : "Suspend"}</button>
+            <button class="btn btn-outline btn-sm" data-adjust="${x.id}" data-name="${esc(x.full_name || "")}">Adjust wallet</button>
+          </div>` : ""}
+        </div>`).join("") : `<p class="app-sub">No users yet.</p>`}
+      <h3 class="dash-sec">Reviews (${allReviews.length})</h3>
+      ${allReviews.length ? allReviews.map(rv => `
+        <div class="job-card">
+          <div class="job-head">
+            <div class="job-title"><b>${esc(rv.customer_name || "")}</b><span class="job-meta">${"⭐".repeat(rv.rating || 0)} · ${esc(rv.service || "")} · ${esc(rv.city || "")}</span></div>
+            <button class="btn btn-outline btn-sm" data-remove-review="${rv.id}">Remove</button>
+          </div>
+          ${rv.comment ? `<p class="job-desc">${esc(rv.comment)}</p>` : ""}
+        </div>`).join("") : `<p class="app-sub">No reviews yet.</p>`}
+      <h3 class="dash-sec">Admin audit log</h3>
+      ${audit.length ? audit.map(a => `
+        <div class="audit-row">
+          <span class="audit-action">${esc(a.action)}</span>
+          <span class="audit-target">${esc(a.target || "")}</span>
+          <small>${esc(a.admin_name || "")} · ${new Date(a.created_at).toLocaleString()}${a.reason ? " · " + esc(a.reason) : ""}</small>
+        </div>`).join("") : `<p class="app-sub">No admin actions recorded yet.</p>`}
     </div>`);
   document.querySelectorAll("[data-approve-app]").forEach(b => b.addEventListener("click", async () => {
     try { await DB.setApplicationStatus(b.dataset.approveApp, "approved"); toast("Artisan approved."); adminView(); }
@@ -767,6 +887,44 @@ async function adminView() {
     try { await DB.rejectPurchase(b.dataset.rejectTx); toast("Purchase declined."); adminView(); }
     catch (e) { toast(e.message, true); }
   }));
+  document.querySelectorAll("[data-cancel-booking]").forEach(b => b.addEventListener("click", async () => {
+    const reason = prompt(`Cancel booking ${b.dataset.ref}? Give a reason (customer and artisan see the cancellation):`);
+    if (reason === null) return;
+    try { await DB.adminCancelBooking(b.dataset.cancelBooking, reason); toast("Booking cancelled."); adminView(); }
+    catch (e) { toast(e.message, true); }
+  }));
+  document.querySelectorAll("[data-reassign-booking]").forEach(b => b.addEventListener("click", async () => {
+    const sel = document.getElementById("reassign-" + b.dataset.reassignBooking);
+    const artisanId = sel && sel.value;
+    if (!artisanId) { toast("Pick an artisan first.", true); return; }
+    const reason = prompt(`Reassign booking ${b.dataset.ref} to ${sel.options[sel.selectedIndex].text}? Reason:`);
+    if (reason === null) return;
+    try { await DB.adminReassignBooking(b.dataset.reassignBooking, artisanId, reason); toast("Booking reassigned."); adminView(); }
+    catch (e) { toast(e.message, true); }
+  }));
+  document.querySelectorAll("[data-suspend]").forEach(b => b.addEventListener("click", async () => {
+    const flag = b.dataset.flag === "1";
+    const reason = prompt(`${flag ? "Suspend" : "Reinstate"} ${b.dataset.name}? Reason:`);
+    if (reason === null) return;
+    try { await DB.adminSetSuspended(b.dataset.suspend, flag, reason); toast(flag ? "Account suspended." : "Account reinstated."); adminView(); }
+    catch (e) { toast(e.message, true); }
+  }));
+  document.querySelectorAll("[data-adjust]").forEach(b => b.addEventListener("click", async () => {
+    const amt = prompt(`Adjust ${b.dataset.name}'s wallet by how many credits? (negative to remove)`);
+    if (amt === null) return;
+    const credits = parseInt(amt, 10);
+    if (!credits) { toast("Enter a non-zero whole number.", true); return; }
+    const reason = prompt("Reason for this adjustment (required, goes to the audit log):");
+    if (reason === null) return;
+    try { await DB.adminAdjustWallet(b.dataset.adjust, credits, reason); toast("Wallet adjusted."); adminView(); }
+    catch (e) { toast(e.message, true); }
+  }));
+  document.querySelectorAll("[data-remove-review]").forEach(b => b.addEventListener("click", async () => {
+    const reason = prompt("Remove this review from the site? Reason:");
+    if (reason === null) return;
+    try { await DB.adminRemoveReview(b.dataset.removeReview, reason); toast("Review removed."); adminView(); }
+    catch (e) { toast(e.message, true); }
+  }));
 }
 
 /* ================= ROUTER ================= */
@@ -775,6 +933,14 @@ async function router() {
   clearInterval(chatTimer);
   const r = parseRoute();
   try {
+    if (r.name !== "auth") {
+      const u = await DB.user();
+      if (u) {
+        const p = await DB.profile();
+        if (p && p.suspended) return suspendedView();
+      }
+    }
+    updateNotifBadge();
     switch (r.name) {
       case "auth": return authView(r.query);
       case "book": return await bookView(r.query);
@@ -783,6 +949,8 @@ async function router() {
       case "artisan": return await artisanView(r.query);
       case "credits": return await creditsView();
       case "chat": return await chatView(r.query);
+      case "notifications": return await notificationsView();
+      case "profile": return await profileView();
       case "admin": return await adminView();
       default:
         showLanding();
@@ -808,4 +976,6 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") closePopup()
   DB.init();
   await renderNavAuth();
   router();
+  clearInterval(notifTimer);
+  notifTimer = setInterval(() => { updateNotifBadge(); }, 30000);
 })();

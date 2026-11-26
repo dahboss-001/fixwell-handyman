@@ -307,4 +307,86 @@ const DB = {
     if (error) return [];
     return data || [];
   },
+
+  /* ---------- profile ---------- */
+  async updateProfile(fields) {
+    const u = await this.user();
+    const { error } = await this.client.from("profiles").update(fields).eq("id", u.id);
+    if (error) throw error;
+    this._profileCache = null;
+  },
+
+  /* ---------- notifications ---------- */
+  async myNotifications() {
+    const { data, error } = await this.client.from("notifications")
+      .select("*").order("created_at", { ascending: false }).limit(50);
+    if (error) return [];
+    return data || [];
+  },
+
+  async unreadCount() {
+    const { count, error } = await this.client.from("notifications")
+      .select("id", { count: "exact", head: true }).eq("read", false);
+    if (error) return 0;
+    return count || 0;
+  },
+
+  async markAllRead() {
+    const u = await this.user();
+    await this.client.from("notifications").update({ read: true }).eq("user_id", u.id).eq("read", false);
+  },
+
+  /* ---------- admin controls ---------- */
+  async adminListUsers() {
+    const { data, error } = await this.client.from("profiles")
+      .select("*").order("created_at", { ascending: false });
+    if (error) return [];
+    return data || [];
+  },
+
+  async adminListApprovedArtisans() {
+    const { data, error } = await this.client.from("artisan_applications")
+      .select("user_id, full_name, trade, city").eq("status", "approved");
+    if (error) return [];
+    return data || [];
+  },
+
+  async adminAuditLog() {
+    const { data, error } = await this.client.from("admin_actions")
+      .select("*").order("created_at", { ascending: false }).limit(50);
+    if (error) return [];
+    return data || [];
+  },
+
+  async adminCancelBooking(id, reason) {
+    const { error } = await this.client.rpc("admin_cancel_booking", { p_booking: id, p_reason: reason });
+    if (error) throw error;
+  },
+
+  async adminReassignBooking(id, artisanId, reason) {
+    const { error } = await this.client.rpc("admin_reassign_booking", { p_booking: id, p_artisan: artisanId, p_reason: reason });
+    if (error) throw error;
+  },
+
+  async adminSetSuspended(userId, flag, reason) {
+    const { error } = await this.client.rpc("admin_set_suspended", { p_user: userId, p_suspended: flag, p_reason: reason });
+    if (error) throw error;
+  },
+
+  async adminRemoveReview(id, reason) {
+    const { error } = await this.client.rpc("admin_remove_review", { p_review: id, p_reason: reason });
+    if (error) throw error;
+  },
+
+  async adminAdjustWallet(userId, credits, reason) {
+    const { error } = await this.client.rpc("admin_adjust_wallet", { p_user: userId, p_credits: credits, p_reason: reason });
+    if (error) throw error;
+  },
+
+  async adminAllReviews() {
+    const { data, error } = await this.client.from("reviews")
+      .select("*").order("created_at", { ascending: false }).limit(50);
+    if (error) return [];
+    return data || [];
+  },
 };
