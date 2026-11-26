@@ -595,6 +595,7 @@ async function profileView() {
 
 /* ================= SUSPENDED ================= */
 function suspendedView() {
+  DB._profileCache = null; // refetch on next route so a reinstated account recovers without a reload
   showApp(`<div class="panel-card center"><h2>Account suspended</h2><p>Your Fixwell account has been suspended. If you think this is a mistake, reply to any message from the Fixwell team.</p></div>`);
 }
 
@@ -806,7 +807,7 @@ async function adminView() {
         <div class="job-card">
           <div class="job-head">
             <div class="job-title"><b>${esc(a.full_name)}</b><span class="job-meta">${esc(a.trade)} · ${esc(a.city)} · ${esc(a.experience)} · ${esc(a.area)}</span></div>
-            ${badge(a.status === "approved" ? "assigned" : a.status === "pending" ? "received" : "cancelled")}
+            ${a.status === "approved" ? `<span class="status-badge st-completed">Approved</span>` : a.status === "pending" ? `<span class="status-badge st-received">Pending</span>` : `<span class="status-badge st-cancelled">Declined</span>`}
           </div>
           ${a.status === "pending" ? `
             <div class="quote-actions">
