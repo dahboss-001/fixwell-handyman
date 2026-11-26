@@ -301,3 +301,5 @@ img{max-width:100%}
 .city-btn.active{background:var(--accent);color:#fff;box-shadow:0 4px 12px rgba(242,107,29,.35)}
 .nav-toggle.open span{background:#fff}
 .nav-toggle{position:relative}
+.hero-launch{margin-top:20px;text-align:center;font-weight:600;font-size:14px;color:var(--accent-dark);
+  background:var(--accent-soft);padding:12px 14px;border-radius:12px}

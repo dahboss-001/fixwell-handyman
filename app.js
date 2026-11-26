@@ -18,12 +18,14 @@ const CONFIG = {
   cities: ["Awka", "Aba"],
   areasNote: "Serving Awka (Anambra) and Aba (Abia)",
 
-  // HERO STATS (PLACEHOLDERS - replace with real figures)
-  stats: [
-    { value: "120+", label: "Jobs completed" },
-    { value: "40+",  label: "Vetted artisans" },
-    { value: "2",    label: "Cities served" },
-  ],
+  // HERO STATS - EMPTY by default: no numbers are shown until the client
+  // sets REAL figures here. Example:
+  // stats: [
+  //   { value: "120+", label: "Jobs completed" },
+  //   { value: "40+",  label: "Screened artisans" },
+  //   { value: "2",    label: "Cities served" },
+  // ],
+  stats: [],
 
   // SERVICES (icon, name, blurb, typical starting price - PLACEHOLDER prices)
   services: [
@@ -101,7 +103,7 @@ const CONFIG = {
   // FAQ
   faqs: [
     { q: "How do I pay for a job?", a: "You approve a quote on WhatsApp before work starts, then pay the artisan directly when the job is done. Bank transfer or cash, whatever suits you. We never take online payments on this site." },
-    { q: "How are artisans vetted?", a: "Every artisan completes an ID check, a skill assessment and reference checks on past work before taking jobs. New artisans start with supervised trial jobs." },
+    { q: "How are artisans screened?", a: "Before artisans join, we confirm their ID, assess their skill and check references on past work. New artisans start with supervised trial jobs. Confirm this matches your actual process and edit it here if needed." },
     { q: "Which areas do you cover?", a: "We currently serve Awka in Anambra State and Aba in Abia State, including surrounding neighbourhoods. Message us your area and we will confirm coverage." },
     { q: "Is the price guide the final price?", a: "No. The guide shows typical ranges so you know the going rate. Your exact quote is confirmed on WhatsApp before any work begins, and you approve it first." },
     { q: "What if something goes wrong after a job?", a: "Tell us on WhatsApp within 7 days and we will send the artisan back to put it right at no extra labour cost." },
@@ -142,7 +144,15 @@ function renderCityPicker() {
 
 /* ---------- render: stats ---------- */
 function renderStats() {
-  document.getElementById("heroStats").innerHTML =
+  const box = document.getElementById("heroStats");
+  const launch = document.getElementById("heroLaunch");
+  if (!CONFIG.stats.length) {
+    box.hidden = true;
+    launch.hidden = false;
+    return;
+  }
+  launch.hidden = true;
+  box.innerHTML =
     CONFIG.stats.map(s => `<div class="stat"><b>${s.value}</b><span>${s.label}</span></div>`).join("");
 }
 
@@ -264,7 +274,7 @@ function renderContact() {
   tp.href = "tel:+" + CONFIG.whatsappNumber;
   document.getElementById("emgHours").textContent = CONFIG.emergencyHours;
   document.getElementById("footerTagline").textContent =
-    "Vetted local artisans for homes and businesses. " + CONFIG.areasNote + ".";
+    "Screened local artisans for homes and businesses. " + CONFIG.areasNote + ".";
   document.getElementById("footerAddress").textContent = "📍 " + CONFIG.address;
   document.getElementById("footerEmail").textContent = "✉️ " + CONFIG.email;
   document.getElementById("footerPhone").textContent = "📞 " + CONFIG.phoneDisplay;
