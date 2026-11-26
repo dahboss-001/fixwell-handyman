@@ -104,6 +104,39 @@ const DB = {
     if (error) throw error;
   },
 
+  /* ---------- quote comparison (patch-006) ---------- */
+  async sendLeadQuote(bookingId, amount, note) {
+    const { error } = await this.client.rpc("artisan_send_quote", {
+      p_booking: bookingId, p_amount: amount, p_note: note || null,
+    });
+    if (error) throw error;
+  },
+
+  async withdrawQuote(quoteId) {
+    const { error } = await this.client.rpc("artisan_withdraw_quote", { p_quote: quoteId });
+    if (error) throw error;
+  },
+
+  async acceptQuoteCard(quoteId) {
+    const { error } = await this.client.rpc("customer_accept_quote", { p_quote: quoteId });
+    if (error) throw error;
+  },
+
+  async bookingQuotes(bookingId) {
+    const { data } = await this.client.from("quotes")
+      .select("*").eq("booking_id", bookingId).order("amount", { ascending: true });
+    return data || [];
+  },
+
+  async myQuotesByBooking() {
+    const p = await this.profile();
+    const { data } = await this.client.from("quotes")
+      .select("*").eq("artisan_id", p.id);
+    const map = {};
+    (data || []).forEach(q => { if (q.status === "pending") map[q.booking_id] = q; });
+    return map;
+  },
+
   async approveQuote(id) {
     const { error } = await this.client.from("bookings")
       .update({ status: "in_progress" }).eq("id", id);
