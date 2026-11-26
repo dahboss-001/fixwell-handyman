@@ -63,6 +63,23 @@ function svcIcon(name) {
   return s ? s.icon : "🧰";
 }
 
+/* staged job gallery: before / during / after */
+function gallery(photos) {
+  if (!photos || !photos.length) return "";
+  const stages = [
+    ["booking", "📷 Before work"],
+    ["progress", "🔧 During work"],
+    ["completion", "✅ After work"],
+  ];
+  return `<div class="gallery">` + stages.map(([kind, label]) => {
+    const items = photos.filter(ph => (ph.kind || "booking") === kind);
+    if (!items.length) return "";
+    return `<div class="gallery-stage"><span class="gallery-label">${label}</span><div class="gallery-thumbs">${
+      items.map(ph => `<a href="${ph.url}" target="_blank" rel="noopener" title="Open full photo"><img src="${ph.url}" alt="${label} photo" loading="lazy"></a>`).join("")
+    }</div></div>`;
+  }).join("") + `</div>`;
+}
+
 /* ================= AUTH VIEW ================= */
 let authMode = "signup";
 let authRole = "customer";
@@ -341,7 +358,7 @@ async function dashboardView() {
       <p class="job-desc">${esc(b.description)}</p>
       <p class="job-meta">Urgency: ${esc(b.urgency)}${b.preferred_date ? " · Preferred: " + esc(new Date(b.preferred_date).toLocaleDateString()) : ""}${b.artisan_name ? " · Artisan: " + esc(b.artisan_name) : ""}</p>
       ${b.appointment_at ? `<p class="appt-line">🗓️ Appointment: <b>${esc(new Date(b.appointment_at).toLocaleString())}</b>${b.appointment_note ? " · " + esc(b.appointment_note) : ""}</p>` : ""}
-      ${photos.length ? `<p class="job-meta photos-line">📷 ${photos.map((ph, i) => `<a href="${ph.url}" target="_blank" rel="noopener">photo ${i + 1}${ph.kind === "completion" ? " (done)" : ""}</a>`).join(" · ")}</p>` : ""}
+      ${gallery(photos)}
       ${timeline(b.status)}
       ${b.status === "quote_sent" ? `
         <div class="quote-box">
@@ -611,7 +628,7 @@ async function artisanView(query) {
       </div>
       <p class="job-desc">${esc(b.description)}</p>
       <p class="job-meta">Urgency: ${esc(b.urgency)}${b.preferred_date ? " · Preferred: " + esc(new Date(b.preferred_date).toLocaleDateString()) : ""} · Customer: ${esc(b.customer_name || "")}</p>
-      ${(photosBy[b.id] || []).length ? `<p class="job-meta photos-line">📷 ${photosBy[b.id].map((ph, i) => `<a href="${ph.url}" target="_blank" rel="noopener">photo ${i + 1}${ph.kind === "completion" ? " (done)" : ""}</a>`).join(" · ")}</p>` : ""}
+      ${gallery(photosBy[b.id] || [])}
       ${contactBit}
       ${b.status === "received" ? `
         <form class="quote-form lead-quote-form" data-lead-quote="${b.id}">
@@ -640,11 +657,15 @@ async function artisanView(query) {
         </form>` : ""}
       ${b.appointment_at ? `<p class="appt-line">🗓️ Appointment: <b>${esc(new Date(b.appointment_at).toLocaleString())}</b>${b.appointment_note ? " · " + esc(b.appointment_note) : ""}</p>` : ""}
       ${b.status === "in_progress" ? `
+        <form class="progress-form" data-progress-form="${b.id}">
+          <input type="file" class="prog-photos" accept="image/*" multiple aria-label="Progress photos">
+          <button type="submit" class="btn btn-outline btn-sm">📸 Add work photos</button>
+        </form>
         <form class="complete-form" data-complete-form="${b.id}">
           <input type="file" class="done-photos" accept="image/*" multiple aria-label="Completion photos">
           <button type="submit" class="btn btn-primary btn-sm">Mark job completed</button>
         </form>
-        <p class="modal-note">Add up to 3 photos of the finished work (optional but builds your record).</p>` : ""}
+        <p class="modal-note">Share photos as you go (they show under During work), then add photos of the finished work when you complete the job (optional but builds your record).</p>` : ""}
       ${b.artisan_id === p.id ? `<a href="#/chat?booking=${b.id}" class="btn btn-outline btn-sm nav-route">💬 Messages</a>` : ""}
       ${b.status === "quote_sent" ? `<p class="job-meta">Quote of ${fmt(b.quote_amount)} sent. Waiting for the customer to approve.</p>` : ""}
     </div>`;
@@ -711,6 +732,17 @@ async function artisanView(query) {
       await DB.setAppointment(f.dataset.appt, new Date(at).toISOString(), f.querySelector(".appt-note").value.trim() || null);
       toast("Appointment set. The customer can see it now."); artisanView({});
     } catch (err) { toast(err.message, true); }
+  }));
+  document.querySelectorAll("[data-progress-form]").forEach(f => f.addEventListener("submit", async e => {
+    e.preventDefault();
+    const btn = f.querySelector("button[type=submit]");
+    const files = [...f.querySelector(".prog-photos").files].slice(0, 3);
+    if (!files.length) { toast("Choose a photo first", true); return; }
+    btn.disabled = true; btn.textContent = "Uploading…";
+    try {
+      for (const file of files) { await DB.uploadJobPhoto(f.dataset.progressForm, file, "progress"); }
+      toast("Work photos added. The customer can see them now."); artisanView({});
+    } catch (e2) { toast(e2.message, true); btn.disabled = false; btn.textContent = "📸 Add work photos"; }
   }));
   document.querySelectorAll("[data-complete-form]").forEach(f => f.addEventListener("submit", async e => {
     e.preventDefault();

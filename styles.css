@@ -524,3 +524,11 @@ img{max-width:100%}
 .lead-quote-form { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 6px; }
 .lead-quote-form .quote-input { flex: 0 1 150px; }
 .lead-quote-form .quote-note { flex: 1 1 200px; }
+
+/* patch-007: staged job gallery */
+.gallery { margin: 10px 0; display: grid; gap: 10px; }
+.gallery-label { font-size: .8rem; font-weight: 600; color: #555; display: block; margin-bottom: 4px; }
+.gallery-thumbs { display: flex; flex-wrap: wrap; gap: 8px; }
+.gallery-thumbs a { display: block; width: 84px; height: 84px; border-radius: 8px; overflow: hidden; border: 1px solid #e3ddd3; }
+.gallery-thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.progress-form, .complete-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
