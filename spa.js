@@ -174,6 +174,8 @@ async function bookView(query) {
   if (!u) { authMode = "signup"; authRole = "customer"; location.hash = "#/auth"; return; }
   const svcIdx = query.service != null ? +query.service : null;
   const urgent = query.urgent === "1";
+  let props = [];
+  try { props = await DB.myProperties(); } catch (e) { /* properties feature may not be enabled yet */ }
   showApp(`
     <div class="panel-card">
       <a href="#/" class="app-back nav-route">← Back to site</a>
@@ -189,6 +191,14 @@ async function bookView(query) {
         <label>City
           <select id="bkCity">${CONFIG.cities.map(c => `<option${c === city ? " selected" : ""}>${c}</option>`).join("")}</select>
         </label>
+        ${props.length ? `
+        <label>Which property? (optional)
+          <select id="bkProp">
+            <option value="">No property selected</option>
+            ${props.map(p => `<option value="${p.id}">${esc(p.label)} - ${esc(p.address)}</option>`).join("")}
+          </select>
+        </label>
+        <p class="modal-note">Saved properties keep a service history. Add or manage them in your dashboard.</p>` : ""}
         <label>Area / neighbourhood<input type="text" id="bkArea" required placeholder="e.g. GRA, Phase 2"></label>
         <label>Phone / WhatsApp number<input type="tel" id="bkPhone" required placeholder="e.g. 0803 000 0000"></label>
         <p class="modal-note">Your number stays hidden until an artisan accepts your job or unlocks it with a credit.</p>
@@ -225,6 +235,7 @@ async function bookView(query) {
         description: document.getElementById("bkDesc").value.trim(),
         phone: document.getElementById("bkPhone").value.trim(),
         preferredDate: document.getElementById("bkDate").value || null,
+        propertyId: (document.getElementById("bkProp") || {}).value || null,
       });
       if (files.length) {
         btn.textContent = "Uploading photos…";
@@ -289,6 +300,29 @@ async function dashboardView() {
   const p = await DB.profile();
   const [bookings, subs, walletBal] = await Promise.all([DB.myBookings(), DB.mySubscriptions(), DB.walletBalance()]);
   const activeSub = subs.find(s => s.status === "active");
+  const requestedSub = subs.find(s => s.status === "requested");
+  let props = [], history = [];
+  try { [props, history] = await Promise.all([DB.myProperties(), DB.myServiceHistory()]); } catch (e) { /* properties feature may not be enabled yet */ }
+
+  const propCards = props.map(pr => {
+    const entries = history.filter(h => h.property_id === pr.id);
+    return `
+    <div class="job-card">
+      <div class="job-head">
+        <span class="svc-icon">🏠</span>
+        <div class="job-title"><b>${esc(pr.label)}</b><span class="job-meta">${esc(pr.type)} · ${esc(pr.address)}</span></div>
+      </div>
+      ${pr.notes ? `<p class="job-desc">${esc(pr.notes)}</p>` : ""}
+      ${entries.length ? `<div class="hist-list">${entries.map(h => `
+        <p class="job-meta">🔧 ${esc(h.service)} · ${esc(new Date(h.done_at).toLocaleDateString())}${h.booking_ref ? " · " + esc(h.booking_ref) : ""}${h.summary ? " - " + esc(h.summary) : ""}</p>`).join("")}</div>` : `<p class="job-meta">No service history yet. Completed bookings on this property appear here automatically.</p>`}
+      <form class="hist-form" data-hist="${pr.id}">
+        <input type="text" class="hist-svc" required placeholder="Service, e.g. Plumbing repair">
+        <input type="date" class="hist-date" max="${new Date().toISOString().slice(0, 10)}">
+        <input type="text" class="hist-note" placeholder="Note (optional)">
+        <button type="submit" class="btn btn-outline btn-sm">Add entry</button>
+      </form>
+    </div>`;
+  }).join("");
 
   const rows = await Promise.all(bookings.map(async b => {
     const reviewed = b.status === "completed" ? await DB.myReviewFor(b.id) : false;
@@ -339,7 +373,22 @@ async function dashboardView() {
         <a href="#/book" class="btn btn-primary nav-route">+ New booking</a>
       </div>
       ${activeSub ? `<div class="sub-strip">🗓️ Active plan: <b>${esc(activeSub.plan)}</b> (${esc(activeSub.billing)}, ${fmt(activeSub.amount)}) <a href="#plans" class="nav-anchor">Change</a></div>` : ""}
+      ${!activeSub && requestedSub ? `<div class="sub-strip">🗓️ Plan request sent: <b>${esc(requestedSub.plan)}</b> (${esc(requestedSub.billing)}) - the Fixwell team will contact you to set it up. <a href="#plans" class="nav-anchor">All plans</a></div>` : ""}
       <div class="sub-strip">🪙 Credit wallet: <b>${walletBal} credit${walletBal === 1 ? "" : "s"}</b> <a href="#/credits" class="nav-route">Buy credits</a></div>
+      <h3 class="dash-subhead">🏠 My home care</h3>
+      ${propCards}
+      <div class="job-card">
+        <form class="hist-form" id="propForm">
+          <input type="text" id="prLabel" required placeholder="Property label, e.g. My flat">
+          <select id="prType">
+            <option value="house">House</option><option value="flat">Flat</option>
+            <option value="shop">Shop</option><option value="office">Office</option><option value="other">Other</option>
+          </select>
+          <input type="text" id="prAddr" required placeholder="Address">
+          <input type="text" id="prNotes" placeholder="Notes (optional)">
+          <button type="submit" class="btn btn-outline btn-sm">+ Add property</button>
+        </form>
+      </div>
       ${bookings.length ? rows.join("") : `
         <div class="empty-card">
           <span class="popup-emoji">🧰</span>
@@ -356,6 +405,31 @@ async function dashboardView() {
   document.querySelectorAll("[data-cancel]").forEach(b => b.addEventListener("click", async () => {
     try { await DB.cancelBooking(b.dataset.cancel); toast("Booking cancelled."); dashboardView(); }
     catch (e) { toast(e.message, true); }
+  }));
+  const propForm = document.getElementById("propForm");
+  if (propForm) propForm.addEventListener("submit", async e => {
+    e.preventDefault();
+    try {
+      await DB.addProperty({
+        label: document.getElementById("prLabel").value.trim(),
+        type: document.getElementById("prType").value,
+        address: document.getElementById("prAddr").value.trim(),
+        notes: document.getElementById("prNotes").value.trim(),
+      });
+      toast("Property saved.");
+      dashboardView();
+    } catch (err) { toast(err.message, true); }
+  });
+  document.querySelectorAll("[data-hist]").forEach(f => f.addEventListener("submit", async e => {
+    e.preventDefault();
+    try {
+      await DB.addHistoryEntry(f.dataset.hist,
+        f.querySelector(".hist-svc").value.trim(),
+        f.querySelector(".hist-note").value.trim(),
+        f.querySelector(".hist-date").value ? new Date(f.querySelector(".hist-date").value).toISOString() : null);
+      toast("History entry added.");
+      dashboardView();
+    } catch (err) { toast(err.message, true); }
   }));
   document.querySelectorAll(".review-form").forEach(f => {
     f.querySelectorAll(".star").forEach(s => s.addEventListener("click", () => {
@@ -394,20 +468,25 @@ async function subscribeView(query) {
       <span class="popup-emoji">🗓️</span>
       <h2>${esc(plan.name)}</h2>
       <p class="app-sub">${esc(plan.desc)}</p>
-      <div class="plan-price big">${fmt(amount)}<small>/${billing === "annual" ? "year" : "month"}</small></div>
+      <div class="plan-price big">${fmt(amount)}<small>/${billing === "annual" ? "year" : "month"}, billed ${billing}</small></div>
       <ul class="confirm-list">${plan.features.map(f => `<li>${esc(f)}</li>`).join("")}</ul>
-      <button class="btn btn-primary btn-block" id="subConfirm">Confirm subscription</button>
-      <p class="modal-note">No card needed now. Payment is arranged with you after sign-up.</p>
+      <button class="btn btn-primary btn-block" id="subConfirm">Send plan request</button>
+      <p class="modal-note">Placeholder price, confirmed before any payment. No card is taken now: the Fixwell team contacts you to set up the plan.</p>
     </div>`);
   document.getElementById("subConfirm").addEventListener("click", async e => {
-    e.target.disabled = true; e.target.textContent = "Saving…";
+    e.target.disabled = true; e.target.textContent = "Sending…";
     try {
       await DB.subscribePlan(plan.name, billing, amount);
-      toast("Subscription active: " + plan.name);
-      location.hash = "#/dashboard";
+      showApp(`
+        <div class="panel-card center">
+          <span class="popup-emoji">✅</span>
+          <h2>Request received</h2>
+          <p>The Fixwell team has your <b>${esc(plan.name)}</b> request and will contact you to set it up. No payment has been taken.</p>
+          <a href="#/dashboard" class="btn btn-primary nav-route">Back to my dashboard →</a>
+        </div>`);
     } catch (err) {
       toast(err.message, true);
-      e.target.disabled = false; e.target.textContent = "Confirm subscription";
+      e.target.disabled = false; e.target.textContent = "Send plan request";
     }
   });
 }
@@ -877,6 +956,8 @@ async function adminView() {
   if (!u) { location.hash = "#/auth"; return; }
   const p = await DB.profile();
   if (!p || !p.is_admin) { showApp(`<div class="panel-card center"><h2>Admins only</h2><p>This area is for the Fixwell team.</p><a href="#/" class="btn btn-primary nav-route">Back to site</a></div>`); return; }
+  let subRequests = [];
+  try { subRequests = await DB.adminListSubscriptions(); } catch (e) { /* plan requests feature may not be enabled yet */ }
   const [apps, bookings, purchases, users, artisans, audit, allReviews, disputes] = await Promise.all([
     DB.listApplications(),
     DB.client.from("bookings").select("*").order("created_at", { ascending: false }).then(r => r.data || []),
@@ -920,6 +1001,19 @@ async function adminView() {
             <button class="btn btn-outline btn-sm" data-reject-tx="${t.id}">Decline</button>
           </div>
         </div>`).join("") : `<p class="app-sub">No pending purchases.</p>`}
+      <h3 class="dash-sec">Home Care plan requests (${subRequests.filter(s => s.status === "requested").length} waiting)</h3>
+      ${subRequests.length ? subRequests.map(s => `
+        <div class="job-card">
+          <div class="job-head">
+            <div class="job-title"><b>${esc(s.plan)}</b><span class="job-meta">${esc((s.profiles && s.profiles.full_name) || "(user)")} · ${esc(s.billing)} · ${fmt(s.amount || 0)} · ${new Date(s.created_at).toLocaleString()}</span></div>
+            <span class="status-badge ${s.status === "active" ? "st-completed" : s.status === "requested" ? "st-received" : "st-cancelled"}">${esc(s.status)}</span>
+          </div>
+          ${s.status === "requested" ? `
+            <div class="quote-actions">
+              <button class="btn btn-primary btn-sm" data-sub-active="${s.id}">Mark active</button>
+              <button class="btn btn-outline btn-sm" data-sub-close="${s.id}">Close</button>
+            </div>` : ""}
+        </div>`).join("") : `<p class="app-sub">No plan requests yet.</p>`}
       <h3 class="dash-sec">All bookings (${bookings.length})</h3>
       ${bookings.length ? bookings.map(b => `
         <div class="job-card">
@@ -977,6 +1071,14 @@ async function adminView() {
           <small>${esc(a.admin_name || "")} · ${new Date(a.created_at).toLocaleString()}${a.reason ? " · " + esc(a.reason) : ""}</small>
         </div>`).join("") : `<p class="app-sub">No admin actions recorded yet.</p>`}
     </div>`);
+  document.querySelectorAll("[data-sub-active]").forEach(b => b.addEventListener("click", async () => {
+    try { await DB.adminSetSubscriptionStatus(b.dataset.subActive, "active"); toast("Plan marked active."); adminView(); }
+    catch (e) { toast(e.message, true); }
+  }));
+  document.querySelectorAll("[data-sub-close]").forEach(b => b.addEventListener("click", async () => {
+    try { await DB.adminSetSubscriptionStatus(b.dataset.subClose, "closed"); toast("Plan request closed."); adminView(); }
+    catch (e) { toast(e.message, true); }
+  }));
   document.querySelectorAll("[data-resolve-dispute]").forEach(b => b.addEventListener("click", async () => {
     const note = (window.prompt("Resolution note (shown to the user):") || "").trim();
     if (!note) return;

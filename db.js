@@ -55,13 +55,14 @@ const DB = {
   },
 
   /* ---------- bookings ---------- */
-  async createBooking({ service, city, area, urgency, description, phone, preferredDate }) {
+  async createBooking({ service, city, area, urgency, description, phone, preferredDate, propertyId }) {
     const p = await this.profile();
     const ref = "FW-" + Math.random().toString(36).slice(2, 6).toUpperCase();
     const { data, error } = await this.client.from("bookings").insert({
       ref, customer_id: p.id, customer_name: p.full_name,
       service, city, area, urgency, description, status: "received",
       preferred_date: preferredDate || null,
+      property_id: propertyId || null,
     }).select().single();
     if (error) throw error;
     const { error: cErr } = await this.client.from("booking_contacts").insert({
@@ -155,10 +156,53 @@ const DB = {
   async subscribePlan(plan, billing, amount) {
     const p = await this.profile();
     const { data, error } = await this.client.from("subscriptions").insert({
-      user_id: p.id, plan, billing, amount, status: "active",
+      user_id: p.id, plan, billing, amount, status: "requested",
     }).select().single();
     if (error) throw error;
     return data;
+  },
+
+  async adminListSubscriptions() {
+    const { data } = await this.client.from("subscriptions")
+      .select("*, profiles(full_name)").order("created_at", { ascending: false }).limit(50);
+    return data || [];
+  },
+
+  async adminSetSubscriptionStatus(id, status) {
+    const { error } = await this.client.rpc("admin_set_subscription_status", { p_sub: id, p_status: status });
+    if (error) throw error;
+  },
+
+  /* ---------- properties & service history ---------- */
+  async myProperties() {
+    const p = await this.profile();
+    const { data } = await this.client.from("properties")
+      .select("*").eq("user_id", p.id).order("created_at", { ascending: true });
+    return data || [];
+  },
+
+  async addProperty({ label, address, type, notes }) {
+    const p = await this.profile();
+    const { error } = await this.client.from("properties").insert({
+      user_id: p.id, label, address, type, notes,
+    });
+    if (error) throw error;
+  },
+
+  async myServiceHistory() {
+    const p = await this.profile();
+    const { data } = await this.client.from("service_history")
+      .select("*").eq("user_id", p.id).order("done_at", { ascending: false });
+    return data || [];
+  },
+
+  async addHistoryEntry(propertyId, service, summary, doneAt) {
+    const p = await this.profile();
+    const { error } = await this.client.from("service_history").insert({
+      user_id: p.id, property_id: propertyId, service, summary,
+      done_at: doneAt || new Date().toISOString(),
+    });
+    if (error) throw error;
   },
 
   async mySubscriptions() {
