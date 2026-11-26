@@ -178,14 +178,16 @@ end $$;
 create or replace function protect_admin_flag() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  if new.is_admin is distinct from old.is_admin and not is_admin() then
-    new.is_admin := old.is_admin;
+  if auth.uid() is not null
+     and new.is_admin is distinct from coalesce(old.is_admin, false)
+     and not is_admin() then
+    new.is_admin := coalesce(old.is_admin, false);
   end if;
   return new;
 end $$;
 
 drop trigger if exists trg_protect_admin on profiles;
-create trigger trg_protect_admin before update on profiles
+create trigger trg_protect_admin before insert or update on profiles
   for each row execute function protect_admin_flag();
 
 -- ---------------- ROW LEVEL SECURITY ----------------
@@ -227,8 +229,12 @@ create policy "bookings read" on bookings for select using (
     select 1 from artisan_applications a
     where a.user_id = auth.uid() and a.status = 'approved'))
 );
-create policy "bookings update" on bookings for update
-  using (customer_id = auth.uid() or artisan_id = auth.uid() or is_admin());
+create policy "bookings update" on bookings for update using (
+  customer_id = auth.uid() or artisan_id = auth.uid() or is_admin()
+  or (status = 'received' and exists (
+    select 1 from artisan_applications a
+    where a.user_id = auth.uid() and a.status = 'approved'))
+);
 
 -- booking contacts: the customer, admin, or an artisan who unlocked it
 create policy "contacts insert own booking" on booking_contacts for insert
