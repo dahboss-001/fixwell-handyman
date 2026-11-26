@@ -428,6 +428,7 @@ async function artisanView(query) {
   // approved: leads + membership + credits
   const [leads, walletBal, unlocks] = await Promise.all([DB.listLeads(), DB.walletBalance(), DB.myUnlocks()]);
   const mine = leads.filter(b => b.artisan_id === p.id && !["completed", "cancelled"].includes(b.status));
+  const past = leads.filter(b => b.artisan_id === p.id && ["completed", "cancelled"].includes(b.status));
   const open = leads.filter(b => b.status === "received" && b.city === p.city);
   const prePlan = query.plan != null ? CONFIG.artisanPlans[+query.plan] : null;
   const contacts = {};
@@ -483,6 +484,7 @@ async function artisanView(query) {
       ${open.length ? open.map(leadCard).join("") : `<p class="app-sub">No open jobs right now. New bookings appear here automatically.</p>`}
       <h3 class="dash-sec">My active jobs (${mine.length})</h3>
       ${mine.length ? mine.map(leadCard).join("") : `<p class="app-sub">Jobs you accept show up here.</p>`}
+      ${past.length ? `<h3 class="dash-sec">Past jobs (${past.length})</h3>${past.map(leadCard).join("")}` : ""}
     </div>`);
 
   const cp = document.getElementById("confirmPlan");
