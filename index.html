@@ -3,42 +3,39 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Fixwell Handyman | Trusted Artisan Services in Awka & Aba</title>
-<meta name="description" content="Book screened plumbers, electricians, carpenters and more on WhatsApp. Upfront price guide, fast matching, no hidden charges.">
+<title>Fixwell Handyman | Book screened artisans in Awka & Aba</title>
+<meta name="description" content="Book screened plumbers, electricians, carpenters and more in Awka and Aba. Upfront quotes, real job tracking, no hidden charges.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=2">
+<link rel="stylesheet" href="styles.css?v=3">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛠️</text></svg>">
 </head>
 <body>
 
-<!-- Top bar -->
 <div class="topbar">
   <div class="container topbar-inner">
     <span class="topbar-badge">🛡️ Artisans screened before they join</span>
     <div class="topbar-contact">
       <span id="topbarHours"></span>
-      <a id="topbarPhone" href="#">Call</a>
+      <span id="topbarCities"></span>
     </div>
   </div>
 </div>
 
-<!-- Nav -->
 <header class="nav" id="top">
   <div class="container nav-inner">
-    <a href="#top" class="brand">
+    <a href="#/" class="brand nav-route">
       <span class="brand-mark">🛠️</span>
       <span class="brand-name" id="brandName">Fixwell <em>Handyman</em></span>
     </a>
     <nav class="nav-links" id="navLinks" aria-label="Main">
-      <a href="#services">Services</a>
-      <a href="#prices">Price Guide</a>
-      <a href="#how">How It Works</a>
-      <a href="#plans">Plans</a>
-      <a href="#artisans">For Artisans</a>
-      <a href="#faq">FAQ</a>
-      <a href="#" class="btn btn-primary btn-sm nav-cta" data-book>Book a Handyman</a>
+      <a href="#services" class="nav-anchor">Services</a>
+      <a href="#prices" class="nav-anchor">Price Guide</a>
+      <a href="#plans" class="nav-anchor">Plans</a>
+      <a href="#artisans" class="nav-anchor">For Artisans</a>
+      <a href="#reviews" class="nav-anchor">Reviews</a>
+      <span id="navAuth"></span>
     </nav>
     <button class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false">
       <span></span><span></span><span></span>
@@ -46,20 +43,20 @@
   </div>
 </header>
 
-<!-- Hero -->
+<div id="landing">
 <section class="hero">
   <div class="container hero-grid">
     <div class="hero-copy">
-      <p class="eyebrow">⚡ Fast, screened, WhatsApp-simple</p>
+      <p class="eyebrow">⚡ Fast, screened, all in-app</p>
       <h1>Skilled artisans you can trust, booked in minutes.</h1>
-      <p class="hero-sub">Plumbers, electricians, carpenters, AC technicians and more. Tell us what needs fixing, get an upfront quote, and a screened local artisan comes to you.</p>
+      <p class="hero-sub">Plumbers, electricians, carpenters, AC technicians and more. Book here, track your job status in your account, and pay the artisan directly.</p>
       <div class="hero-ctas">
-        <a href="#" class="btn btn-primary btn-lg" data-book>🔧 Book a Handyman</a>
-        <a href="#artisans" class="btn btn-outline btn-lg">💼 Join as an Artisan</a>
+        <a href="#/book" class="btn btn-primary btn-lg nav-route">🔧 Book a Handyman</a>
+        <a href="#/artisan" class="btn btn-outline btn-lg nav-route">💼 Join as an Artisan</a>
       </div>
       <ul class="hero-chips">
         <li>✅ Screened artisans</li>
-        <li>💬 WhatsApp booking</li>
+        <li>📱 Everything in-app</li>
         <li>🏷️ Upfront price guide</li>
         <li>🚫 No hidden charges</li>
       </ul>
@@ -73,54 +70,50 @@
         <span class="hero-card-icon">🧰</span>
         <div>
           <strong>Book in 60 seconds</strong>
-          <p>No app download. No sign-up. Just WhatsApp.</p>
+          <p>Free account. No app download.</p>
         </div>
       </div>
       <ol class="hero-steps">
-        <li><b>1.</b> Pick a service</li>
+        <li><b>1.</b> Create your account</li>
         <li><b>2.</b> Describe the job</li>
-        <li><b>3.</b> Get matched &amp; quoted</li>
+        <li><b>3.</b> Track it to done</li>
       </ol>
-      <a href="#" class="btn btn-primary btn-block" data-book>Start my booking →</a>
-      <div class="hero-stats" id="heroStats"></div>
-      <div class="hero-launch" id="heroLaunch" hidden>🚀 Now launching in Awka and Aba. Upfront quotes, WhatsApp booking, screened artisans.</div>
+      <a href="#/book" class="btn btn-primary btn-block nav-route">Start my booking →</a>
+      <div class="hero-stats" id="heroStats" hidden></div>
+      <div class="hero-launch" id="heroLaunch" hidden>🚀 Now launching in Awka and Aba. Upfront quotes, real job tracking, screened artisans.</div>
     </div>
   </div>
 </section>
 
-<!-- Emergency strip -->
 <section class="emergency">
   <div class="container emergency-inner">
     <div>
       <strong>🚨 Urgent repair?</strong>
-      <span>Burst pipe, power fault, broken lock. Our emergency line is open <b id="emgHours">24/7</b>.</span>
+      <span>Burst pipe, power fault, broken lock. Place an emergency booking and it jumps the queue.</span>
     </div>
-    <a href="#" class="btn btn-light" data-emergency>Get emergency help →</a>
+    <a href="#/book?urgent=1" class="btn btn-light nav-route">Place emergency booking →</a>
   </div>
 </section>
 
-<!-- Services -->
 <section class="section" id="services">
   <div class="container">
     <p class="kicker">WHAT WE FIX</p>
-    <h2>Every trade, one message away</h2>
-    <p class="section-sub">Tap a service to start a WhatsApp booking with the details already filled in.</p>
+    <h2>Every trade, one booking away</h2>
+    <p class="section-sub">Tap a service to start a booking with the details already filled in.</p>
     <div class="services-grid" id="servicesGrid"></div>
   </div>
 </section>
 
-<!-- Price guide -->
 <section class="section section-alt" id="prices">
   <div class="container">
     <p class="kicker">TRANSPARENT PRICING</p>
     <h2>Know the going rate before anyone picks up a tool</h2>
-    <p class="section-sub">Typical price ranges for common jobs. Your exact quote is confirmed on WhatsApp before work begins, so there are no surprises.</p>
+    <p class="section-sub">Typical price ranges for common jobs. Your exact quote arrives in your account before work begins, and you approve it first.</p>
     <div class="price-grid" id="priceGrid"></div>
     <p class="price-note">Prices are guides for standard jobs and may vary with parts, job size and location. You always approve the final quote first.</p>
   </div>
 </section>
 
-<!-- How it works -->
 <section class="section" id="how">
   <div class="container">
     <p class="kicker">HOW IT WORKS</p>
@@ -128,29 +121,28 @@
     <div class="steps-grid">
       <div class="step-card">
         <span class="step-num">01</span>
-        <h3>Tell us on WhatsApp</h3>
-        <p>Pick a service and describe the problem. Add photos in the chat if it helps.</p>
+        <h3>Book in the app</h3>
+        <p>Pick a service, describe the problem and send. Takes about a minute.</p>
       </div>
       <div class="step-card">
         <span class="step-num">02</span>
-        <h3>We match a screened artisan</h3>
-        <p>We pair you with an available artisan near you who has passed our checks.</p>
+        <h3>We assign a screened artisan</h3>
+        <p>An artisan near you who passed our checks accepts your job.</p>
       </div>
       <div class="step-card">
         <span class="step-num">03</span>
-        <h3>Approve an upfront quote</h3>
-        <p>You see and approve the full price before any work starts. No surprises after.</p>
+        <h3>Approve the quote</h3>
+        <p>The quote lands in your account. You approve it before any work starts.</p>
       </div>
       <div class="step-card">
         <span class="step-num">04</span>
         <h3>Job done, pay directly</h3>
-        <p>The artisan finishes the job and you pay them directly. Simple and cashless if you prefer transfer.</p>
+        <p>Track the job to completion, pay the artisan directly, then leave a real review.</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- Maintenance plans -->
 <section class="section section-plans" id="plans">
   <div class="container">
     <p class="kicker">MAINTENANCE PLANS</p>
@@ -164,56 +156,48 @@
       <span class="billing-label" id="labelAnnual">Bill Annually <span class="save-badge" id="saveBadge"></span></span>
     </div>
     <div class="plans-grid" id="plansGrid"></div>
-    <p class="plans-note">Plan details and prices are confirmed on WhatsApp. No online payment needed to subscribe.</p>
+    <p class="plans-note">Subscriptions are managed in your account. No card needed on this site; payment is arranged after sign-up.</p>
   </div>
 </section>
 
-<!-- For artisans -->
 <section class="section section-alt" id="artisans">
   <div class="container">
     <p class="kicker">FOR ARTISANS</p>
     <h2>Turn your skill into steady work</h2>
-    <p class="section-sub">Join the network and receive job requests from customers in your area, straight to your WhatsApp.</p>
-
+    <p class="section-sub">Create a free artisan account, apply once, and receive job requests from customers in your area, all inside the app.</p>
     <div class="artisan-grid">
       <div class="artisan-benefits">
-        <div class="benefit"><span>📲</span><div><b>Jobs come to you</b><p>Get matched to nearby requests that fit your trade. No more waiting for referrals.</p></div></div>
-        <div class="benefit"><span>💰</span><div><b>You set your rates</b><p>Quote every job yourself. Customers pay you directly, no middleman holding your money.</p></div></div>
-        <div class="benefit"><span>⭐</span><div><b>Build a reputation</b><p>Collect real customer feedback after each job and grow a profile that wins repeat work.</p></div></div>
-        <div class="benefit"><span>🛡️</span><div><b>Free to apply</b><p>Apply on WhatsApp in minutes. We check ID, skill and references before you take jobs.</p></div></div>
+        <div class="benefit"><span>📲</span><div><b>Jobs come to you</b><p>New bookings in your city appear in your dashboard. Accept the ones that fit.</p></div></div>
+        <div class="benefit"><span>💰</span><div><b>You set your rates</b><p>Send your quote through the app. Customers pay you directly, no middleman holding your money.</p></div></div>
+        <div class="benefit"><span>⭐</span><div><b>Build a reputation</b><p>Customers review completed jobs in the app. Good reviews win repeat work.</p></div></div>
+        <div class="benefit"><span>🛡️</span><div><b>Free to apply</b><p>Apply in minutes. We check ID, skill and references before you take jobs.</p></div></div>
       </div>
       <div class="artisan-join">
         <h3>How joining works</h3>
         <ol class="join-steps">
-          <li><b>1. Apply on WhatsApp</b><span>Send your name, trade, experience and area.</span></li>
-          <li><b>2. Verification</b><span>We confirm your ID, skill and past work references.</span></li>
-          <li><b>3. Trial jobs</b><span>Take your first jobs with extra support from our team.</span></li>
-          <li><b>4. Full member</b><span>Get steady requests and grow your customer base.</span></li>
+          <li><b>1. Create an artisan account</b><span>Sign up free and choose your trade.</span></li>
+          <li><b>2. Apply in the app</b><span>Tell us your experience and area.</span></li>
+          <li><b>3. Screening</b><span>We confirm your ID, skill and past work references.</span></li>
+          <li><b>4. Start getting jobs</b><span>Accept bookings, send quotes, get reviewed.</span></li>
         </ol>
-        <a href="#" class="btn btn-primary btn-block" data-apply>📲 Apply on WhatsApp</a>
+        <a href="#/artisan" class="btn btn-primary btn-block nav-route">📲 Apply in the app</a>
       </div>
     </div>
-
     <h3 class="artisan-plans-title">Artisan membership plans</h3>
-    <p class="section-sub">Start free, upgrade when your job volume grows. Fees are confirmed on WhatsApp.</p>
+    <p class="section-sub">Start free, upgrade when your job volume grows. Plans are chosen in your artisan dashboard.</p>
     <div class="aplans-grid" id="aplansGrid"></div>
   </div>
 </section>
 
-<!-- Reviews (honest placeholder) -->
 <section class="section" id="reviews">
-  <div class="container reviews-inner">
+  <div class="container">
     <p class="kicker">REAL FEEDBACK ONLY</p>
-    <h2>Reviews we earn, not invent</h2>
-    <p class="reviews-copy">After every completed job we ask the customer for honest feedback on WhatsApp, and we publish it as received. This space fills up as real jobs are done. Yours could be next.</p>
-    <div class="reviews-ctas">
-      <a href="#" class="btn btn-primary" data-book>Book your first job</a>
-      <a href="#" class="btn btn-outline" data-review>Share feedback on WhatsApp</a>
-    </div>
+    <h2>Reviews from real completed jobs</h2>
+    <p class="section-sub">Every review below was left by a customer inside the app after a completed job. No imported or written-up testimonials.</p>
+    <div class="reviews-grid" id="reviewsGrid"></div>
   </div>
 </section>
 
-<!-- FAQ -->
 <section class="section section-alt" id="faq">
   <div class="container faq-container">
     <p class="kicker">QUESTIONS</p>
@@ -222,24 +206,22 @@
   </div>
 </section>
 
-<!-- Big CTA -->
 <section class="bigcta">
   <div class="container bigcta-inner">
     <h2>Something broken? Let's fix it today.</h2>
-    <p>Message us on WhatsApp now and get matched with a screened artisan near you.</p>
+    <p>Create your free account and book a screened artisan near you.</p>
     <div class="bigcta-btns">
-      <a href="#" class="btn btn-light btn-lg" data-book>🔧 Book a Handyman</a>
-      <a href="#" class="btn btn-ghost btn-lg" data-apply>💼 Join as an Artisan</a>
+      <a href="#/book" class="btn btn-light btn-lg nav-route">🔧 Book a Handyman</a>
+      <a href="#/artisan" class="btn btn-ghost btn-lg nav-route">💼 Join as an Artisan</a>
     </div>
     <ul class="bigcta-chips">
-      <li>No sign-up needed</li>
+      <li>Free account</li>
       <li>Upfront quotes</li>
       <li>Pay the artisan directly</li>
     </ul>
   </div>
 </section>
 
-<!-- Footer -->
 <footer class="footer">
   <div class="container footer-grid">
     <div class="footer-brand">
@@ -253,104 +235,45 @@
     </div>
     <div class="footer-col">
       <h4>Company</h4>
-      <a href="#how">How it works</a>
-      <a href="#plans">Maintenance plans</a>
-      <a href="#artisans">For artisans</a>
-      <a href="#faq">FAQ</a>
+      <a href="#how" class="nav-anchor">How it works</a>
+      <a href="#plans" class="nav-anchor">Maintenance plans</a>
+      <a href="#artisans" class="nav-anchor">For artisans</a>
+      <a href="#faq" class="nav-anchor">FAQ</a>
     </div>
     <div class="footer-col">
       <h4>Contact</h4>
       <p id="footerAddress"></p>
       <p id="footerEmail"></p>
-      <p id="footerPhone"></p>
       <p id="footerAreas"></p>
     </div>
   </div>
   <div class="container footer-bottom">
     <span>© <span id="year"></span> <span id="footerName"></span>. All rights reserved.</span>
-    <span>Bookings via WhatsApp. Customers pay artisans directly.</span>
+    <span>Bookings in-app. Customers pay artisans directly.</span>
   </div>
 </footer>
+</div><!-- /landing -->
 
-<!-- WhatsApp float -->
-<a href="#" class="wa-float" data-book aria-label="Chat on WhatsApp">
-  <span>💬</span>
-</a>
+<div id="appView" class="app-view" hidden>
+  <div class="container app-container">
+    <div id="appContent"></div>
+  </div>
+</div>
 
-<!-- First-visit popup -->
 <div class="popup-overlay" id="popupOverlay" aria-hidden="true">
   <div class="popup-card" role="dialog" aria-modal="true" aria-labelledby="popupTitle">
     <button class="popup-close" id="popupClose" aria-label="Close popup">✕</button>
     <span class="popup-emoji">🔧</span>
     <h3 id="popupTitle">Something needs fixing?</h3>
-    <p>Get a free, no-obligation quote on WhatsApp in minutes. Screened local artisans, upfront prices.</p>
-    <a href="#" class="btn btn-primary btn-block" data-book id="popupCta">Get my free quote</a>
+    <p>Create a free account and book a screened artisan in minutes. Track the job right here, no WhatsApp needed.</p>
+    <a href="#/book" class="btn btn-primary btn-block nav-route" id="popupCta">Book now</a>
     <button class="popup-later" id="popupLater">Maybe later</button>
   </div>
 </div>
 
-<!-- Booking modal -->
-<div class="modal-overlay" id="bookModal" aria-hidden="true">
-  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="bookTitle">
-    <button class="modal-close" data-close-modal aria-label="Close">✕</button>
-    <h3 id="bookTitle">🔧 Book a handyman</h3>
-    <p class="modal-sub">Fill this in and we'll open WhatsApp with your request ready to send.</p>
-    <form id="bookForm">
-      <label>Service
-        <select id="bookService" required></select>
-      </label>
-      <label>Your area
-        <input type="text" id="bookArea" placeholder="e.g. GRA, Phase 2" required>
-      </label>
-      <label>How urgent is it?
-        <select id="bookUrgency">
-          <option>Flexible, this week is fine</option>
-          <option>Soon, within 1 to 2 days</option>
-          <option>Emergency, today</option>
-        </select>
-      </label>
-      <label>Describe the job
-        <textarea id="bookDesc" rows="3" placeholder="e.g. Kitchen tap is leaking and needs replacement" required></textarea>
-      </label>
-      <label>Your name
-        <input type="text" id="bookName" placeholder="First name is fine" required>
-      </label>
-      <button type="submit" class="btn btn-primary btn-block">Continue on WhatsApp →</button>
-      <p class="modal-note">You'll review the message before it sends. Nothing is charged.</p>
-    </form>
-  </div>
-</div>
-
-<!-- Artisan apply modal -->
-<div class="modal-overlay" id="applyModal" aria-hidden="true">
-  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="applyTitle">
-    <button class="modal-close" data-close-modal aria-label="Close">✕</button>
-    <h3 id="applyTitle">💼 Apply as an artisan</h3>
-    <p class="modal-sub">Fill this in and we'll open WhatsApp with your application ready to send.</p>
-    <form id="applyForm">
-      <label>Your trade
-        <select id="applyTrade" required></select>
-      </label>
-      <label>Years of experience
-        <select id="applyExp">
-          <option>1 to 3 years</option>
-          <option>3 to 5 years</option>
-          <option>5 to 10 years</option>
-          <option>10+ years</option>
-        </select>
-      </label>
-      <label>Your area
-        <input type="text" id="applyArea" placeholder="e.g. Aba South" required>
-      </label>
-      <label>Your name
-        <input type="text" id="applyName" required>
-      </label>
-      <button type="submit" class="btn btn-primary btn-block">Send application on WhatsApp →</button>
-      <p class="modal-note">Free to apply. We'll reply with the next verification step.</p>
-    </form>
-  </div>
-</div>
-
-<script src="app.js?v=2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js?v=3"></script>
+<script src="db.js?v=3"></script>
+<script src="spa.js?v=3"></script>
 </body>
 </html>
