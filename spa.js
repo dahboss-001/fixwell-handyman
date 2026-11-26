@@ -885,6 +885,7 @@ async function adminView() {
     DB.adminListApprovedArtisans(),
     DB.adminAuditLog(),
     DB.adminAllReviews(),
+    DB.adminListDisputes(),
   ]);
   const openStatuses = ["received", "assigned", "quote_sent", "in_progress"];
   const bookingRefs = {}; bookings.forEach(b => { bookingRefs[b.id] = b.ref; });
