@@ -299,3 +299,5 @@ img{max-width:100%}
 .city-btn{border:0;background:transparent;padding:8px 20px;border-radius:999px;font-family:'Sora',sans-serif;
   font-weight:700;font-size:14px;color:var(--ink-soft);cursor:pointer;transition:.15s}
 .city-btn.active{background:var(--accent);color:#fff;box-shadow:0 4px 12px rgba(242,107,29,.35)}
+.nav-toggle.open span{background:#fff}
+.nav-toggle{position:relative}
