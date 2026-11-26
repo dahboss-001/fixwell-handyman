@@ -645,6 +645,53 @@ async function artisanView(query) {
   const photosBy = {};
   await Promise.all([...open, ...mine].map(async b => { photosBy[b.id] = await DB.bookingPhotos(b.id); }));
 
+  let myTeamInfo = null, myMembershipTeams = [];
+  const teamJobsBy = {};
+  try {
+    [myTeamInfo, myMembershipTeams] = await Promise.all([DB.myTeam(), DB.myTeamMemberships()]);
+    await Promise.all(myMembershipTeams.map(async t => { teamJobsBy[t.id] = await DB.teamJobs(t.owner_id); }));
+  } catch (e) { /* teams feature may not be enabled yet */ }
+
+  const ownerBit = myTeamInfo ? `
+      <div class="job-card">
+        <div class="job-head">
+          <span class="svc-icon">👥</span>
+          <div class="job-title"><b>${esc(myTeamInfo.team.name)}</b><span class="job-meta">Your company · ${myTeamInfo.members.length} worker${myTeamInfo.members.length === 1 ? "" : "s"}</span></div>
+        </div>
+        ${myTeamInfo.members.length ? myTeamInfo.members.map(m => `
+          <p class="job-meta">🛠️ ${esc(m.member_name || "Team member")} <button class="btn btn-outline btn-sm" data-remove-member="${m.id}">Remove</button></p>`).join("") : `<p class="job-meta">No workers yet. Add your first worker below.</p>`}
+        <form class="hist-form" id="teamAddForm" data-team="${myTeamInfo.team.id}">
+          <input type="email" id="tmEmail" required placeholder="Worker's account email">
+          <button type="submit" class="btn btn-outline btn-sm">+ Add worker</button>
+        </form>
+        <p class="modal-note">Workers need their own approved artisan account first. They can then see this company's jobs on their dashboard.</p>
+      </div>` : `
+      <div class="job-card">
+        <p class="job-desc"><b>Run a company with several workers?</b> Create a team account so your workers can see every job assigned to your company.</p>
+        <form class="hist-form" id="teamCreateForm">
+          <input type="text" id="teamName" required maxlength="60" placeholder="Company name, e.g. Emeka & Sons Plumbing">
+          <button type="submit" class="btn btn-outline btn-sm">Create team</button>
+        </form>
+      </div>`;
+  const memberBit = myMembershipTeams.map(t => {
+    const jobs = teamJobsBy[t.id] || [];
+    const activeJobs = jobs.filter(b => !["completed", "cancelled"].includes(b.status));
+    return `
+      <div class="job-card">
+        <div class="job-head">
+          <span class="svc-icon">🏢</span>
+          <div class="job-title"><b>${esc(t.name)}</b><span class="job-meta">You are a worker on this team · ${activeJobs.length} active company job${activeJobs.length === 1 ? "" : "s"}</span></div>
+        </div>
+        ${jobs.slice(0, 10).map(b => `
+          <p class="job-meta">${svcIcon(b.service)} ${esc(b.service)} · ${esc(b.ref)} · ${esc(STATUS_LABEL[b.status] || b.status)} · ${esc(b.area)}${b.appointment_at ? " · 🗓️ " + esc(new Date(b.appointment_at).toLocaleString()) : ""}</p>`).join("") || `<p class="job-meta">No company jobs yet.</p>`}
+        <p class="modal-note">Company jobs are managed by the team owner's account.</p>
+      </div>`;
+  }).join("");
+  const teamsSection = `
+      <h3 class="dash-sec">👥 My team</h3>
+      ${ownerBit}
+      ${memberBit}`;
+
   const leadCard = b => {
     const unlocked = unlocks.has(b.id);
     const c = contacts[b.id];
@@ -718,6 +765,7 @@ async function artisanView(query) {
         <div class="sub-strip">Picked plan: <b>${esc(prePlan.name)}</b> (${esc(prePlan.price)} ${esc(prePlan.period)})
           <button class="btn btn-primary btn-sm" id="confirmPlan" data-plan="${esc(prePlan.name)}" data-amount="${prePlan.amount}">Confirm plan</button>
         </div>` : ""}
+      ${teamsSection}
       <h3 class="dash-sec">Open jobs in ${esc(p.city)} (${open.length})</h3>
       ${open.length ? open.map(leadCard).join("") : `<p class="app-sub">No open jobs right now. New bookings appear here automatically.</p>`}
       <h3 class="dash-sec">My active jobs (${mine.length})</h3>
@@ -725,6 +773,24 @@ async function artisanView(query) {
       ${past.length ? `<h3 class="dash-sec">Past jobs (${past.length})</h3>${past.map(leadCard).join("")}` : ""}
     </div>`);
 
+  const tcf = document.getElementById("teamCreateForm");
+  if (tcf) tcf.addEventListener("submit", async e => {
+    e.preventDefault();
+    try { await DB.createTeam(document.getElementById("teamName").value.trim()); toast("Team created."); artisanView({}); }
+    catch (err) { toast(err.message, true); }
+  });
+  const taf = document.getElementById("teamAddForm");
+  if (taf) taf.addEventListener("submit", async e => {
+    e.preventDefault();
+    try {
+      const name = await DB.addTeamMember(taf.dataset.team, document.getElementById("tmEmail").value.trim());
+      toast(name + " added to your team."); artisanView({});
+    } catch (err) { toast(err.message, true); }
+  });
+  document.querySelectorAll("[data-remove-member]").forEach(b => b.addEventListener("click", async () => {
+    try { await DB.removeTeamMember(b.dataset.removeMember); toast("Worker removed."); artisanView({}); }
+    catch (e) { toast(e.message, true); }
+  }));
   const cp = document.getElementById("confirmPlan");
   if (cp) cp.addEventListener("click", async () => {
     try { await DB.chooseMembership(cp.dataset.plan, +cp.dataset.amount); toast("Plan active: " + cp.dataset.plan); artisanView({}); }
