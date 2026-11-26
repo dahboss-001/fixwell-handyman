@@ -518,3 +518,9 @@ img{max-width:100%}
 .hist-form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .hist-form input, .hist-form select { flex: 1 1 140px; min-width: 0; }
 .hist-list { margin-top: 6px; }
+
+/* patch-006: quote comparison */
+.quote-list { margin: 10px 0; display: grid; gap: 8px; }
+.lead-quote-form { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 6px; }
+.lead-quote-form .quote-input { flex: 0 1 150px; }
+.lead-quote-form .quote-note { flex: 1 1 200px; }

@@ -327,6 +327,9 @@ async function dashboardView() {
   const rows = await Promise.all(bookings.map(async b => {
     const reviewed = b.status === "completed" ? await DB.myReviewFor(b.id) : false;
     const photos = await DB.bookingPhotos(b.id);
+    let quotes = [];
+    if (b.status === "received") { try { quotes = await DB.bookingQuotes(b.id); } catch (e) { /* quotes feature may not be enabled yet */ } }
+    const pendingQuotes = quotes.filter(q => q.status === "pending");
     return `
     <div class="job-card">
       <div class="job-head">
@@ -348,6 +351,15 @@ async function dashboardView() {
             <button class="btn btn-outline btn-sm" data-cancel="${b.id}">Decline</button>
           </div>
         </div>` : ""}
+      ${pendingQuotes.length ? `
+        <div class="quote-list"><b>${pendingQuotes.length} quote${pendingQuotes.length === 1 ? "" : "s"} received</b>${pendingQuotes.map(q => `
+          <div class="quote-box">
+            <div><b>${esc(q.artisan_name || "Artisan")}</b><span class="quote-amount">${fmt(q.amount)}</span>${q.note ? `<br><span class="job-meta">${esc(q.note)}</span>` : ""}</div>
+            <div class="quote-actions">
+              <button class="btn btn-primary btn-sm" data-accept-quote="${q.id}">Accept this quote</button>
+            </div>
+          </div>`).join("")}</div>` : ""}
+      ${b.status === "received" && !pendingQuotes.length ? `<p class="job-meta">Waiting for artisan quotes. You will get a notification for each one and can pick the one you prefer.</p>` : ""}
       ${b.status === "received" ? `<button class="btn btn-outline btn-sm" data-cancel="${b.id}">Cancel booking</button>` : ""}
       ${b.artisan_id ? `<a href="#/chat?booking=${b.id}" class="btn btn-outline btn-sm nav-route">💬 Messages</a>` : ""}
       ${b.status !== "cancelled" ? `<a href="#/report?booking=${b.id}" class="btn btn-outline btn-sm nav-route" title="Report a problem">⚠️ Report a problem</a>` : ""}
@@ -401,6 +413,11 @@ async function dashboardView() {
   document.querySelectorAll("[data-approve]").forEach(b => b.addEventListener("click", async () => {
     try { await DB.approveQuote(b.dataset.approve); toast("Quote approved. Work can start."); dashboardView(); }
     catch (e) { toast(e.message, true); }
+  }));
+  document.querySelectorAll("[data-accept-quote]").forEach(b => b.addEventListener("click", async () => {
+    b.disabled = true;
+    try { await DB.acceptQuoteCard(b.dataset.acceptQuote); toast("Quote accepted. The artisan is on your job."); dashboardView(); }
+    catch (e) { toast(e.message, true); b.disabled = false; }
   }));
   document.querySelectorAll("[data-cancel]").forEach(b => b.addEventListener("click", async () => {
     try { await DB.cancelBooking(b.dataset.cancel); toast("Booking cancelled."); dashboardView(); }
@@ -564,6 +581,8 @@ async function artisanView(query) {
 
   // approved: leads + membership + credits
   const [leads, walletBal, unlocks, rejected] = await Promise.all([DB.listLeads(), DB.walletBalance(), DB.myUnlocks(), DB.myRejections()]);
+  let myQuotes = {};
+  try { myQuotes = await DB.myQuotesByBooking(); } catch (e) { /* quotes feature may not be enabled yet */ }
   const mine = leads.filter(b => b.artisan_id === p.id && !["completed", "cancelled"].includes(b.status));
   const past = leads.filter(b => b.artisan_id === p.id && ["completed", "cancelled"].includes(b.status));
   const open = leads.filter(b => b.status === "received" && b.city === p.city && !rejected.has(b.id));
@@ -594,13 +613,26 @@ async function artisanView(query) {
       <p class="job-meta">Urgency: ${esc(b.urgency)}${b.preferred_date ? " · Preferred: " + esc(new Date(b.preferred_date).toLocaleDateString()) : ""} · Customer: ${esc(b.customer_name || "")}</p>
       ${(photosBy[b.id] || []).length ? `<p class="job-meta photos-line">📷 ${photosBy[b.id].map((ph, i) => `<a href="${ph.url}" target="_blank" rel="noopener">photo ${i + 1}${ph.kind === "completion" ? " (done)" : ""}</a>`).join(" · ")}</p>` : ""}
       ${contactBit}
-      ${b.status === "received" ? `<button class="btn btn-primary btn-sm" data-accept="${b.id}">Accept this job</button>
+      ${b.status === "received" ? `
+        <form class="quote-form lead-quote-form" data-lead-quote="${b.id}">
+          <input type="number" min="500" step="100" required placeholder="Your quote in ₦" class="quote-input" value="${myQuotes[b.id] ? myQuotes[b.id].amount : ""}">
+          <input type="text" class="quote-note" maxlength="120" placeholder="Note for the customer (optional)" value="${myQuotes[b.id] && myQuotes[b.id].note ? esc(myQuotes[b.id].note) : ""}">
+          <button type="submit" class="btn btn-primary btn-sm">${myQuotes[b.id] ? "Update my quote" : "Send quote"}</button>
+          ${myQuotes[b.id] ? `<button type="button" class="btn btn-outline btn-sm" data-withdraw-quote="${myQuotes[b.id].id}">Withdraw</button>` : ""}
+        </form>
+        ${myQuotes[b.id] ? `<p class="job-meta">Your quote of ${fmt(myQuotes[b.id].amount)} is with the customer. You can update or withdraw it while the job is open.</p>` : `<p class="modal-note">The customer compares quotes from artisans and picks one. Sending a quote is free.</p>`}
         <button class="btn btn-outline btn-sm" data-reject-lead="${b.id}">Not for me</button>` : ""}
       ${b.status === "assigned" ? `
         <form class="quote-form" data-quote="${b.id}">
           <input type="number" min="500" step="100" required placeholder="Your quote in ₦" class="quote-input">
           <button type="submit" class="btn btn-primary btn-sm">Send quote</button>
         </form>
+        <form class="appt-form" data-appt="${b.id}">
+          <input type="datetime-local" class="appt-input" aria-label="Appointment date and time">
+          <input type="text" class="appt-note" maxlength="80" placeholder="Note (optional, e.g. gate code)">
+          <button type="submit" class="btn btn-outline btn-sm">🗓️ Set appointment</button>
+        </form>` : ""}
+      ${b.status === "in_progress" ? `
         <form class="appt-form" data-appt="${b.id}">
           <input type="datetime-local" class="appt-input" aria-label="Appointment date and time">
           <input type="text" class="appt-note" maxlength="80" placeholder="Note (optional, e.g. gate code)">
@@ -646,6 +678,17 @@ async function artisanView(query) {
   });
   document.querySelectorAll("[data-accept]").forEach(b => b.addEventListener("click", async () => {
     try { await DB.acceptBooking(b.dataset.accept); toast("Job accepted. Send your quote."); artisanView({}); }
+    catch (e) { toast(e.message, true); }
+  }));
+  document.querySelectorAll("[data-lead-quote]").forEach(f => f.addEventListener("submit", async e => {
+    e.preventDefault();
+    try {
+      await DB.sendLeadQuote(f.dataset.leadQuote, +f.querySelector(".quote-input").value, f.querySelector(".quote-note").value.trim());
+      toast("Quote sent to the customer."); artisanView({});
+    } catch (err) { toast(err.message, true); }
+  }));
+  document.querySelectorAll("[data-withdraw-quote]").forEach(b => b.addEventListener("click", async () => {
+    try { await DB.withdrawQuote(b.dataset.withdrawQuote); toast("Quote withdrawn."); artisanView({}); }
     catch (e) { toast(e.message, true); }
   }));
   document.querySelectorAll(".quote-form").forEach(f => f.addEventListener("submit", async e => {
