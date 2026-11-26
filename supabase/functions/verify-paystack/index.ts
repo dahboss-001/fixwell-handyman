@@ -81,6 +81,12 @@ serve(async (req) => {
       const event = JSON.parse(raw);
       if (event.event !== "charge.success") return json({ ok: true, ignored: event.event });
       const reference = event.data && event.data.reference;
+      // Shared Paystack account: events from other flows (e.g. a store)
+      // arrive here too. Only Fixwell credit purchases use FWCR- refs;
+      // acknowledge everything else immediately without touching it.
+      if (!reference || !String(reference).startsWith("FWCR-")) {
+        return json({ ok: true, ignored: "not a Fixwell reference" });
+      }
       const { data: txs } = await sb.from("credit_transactions")
         .select("*").eq("payment_ref", reference).eq("kind", "purchase").limit(1);
       if (!txs || !txs.length) return json({ ok: true, note: "unknown reference" });

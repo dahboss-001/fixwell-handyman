@@ -632,6 +632,7 @@ async function paystackCheckout(pkg) {
     amount: pkg.priceNGN * 100,
     currency: "NGN",
     ref,
+    metadata: { custom_fields: [{ display_name: "App", variable_name: "app", value: "Fixwell Handyman" }] },
     callback: r => verifyPurchase(r.reference),
     onClose: () => toast("Checkout closed. If you completed payment, your credits land shortly."),
   }).openIframe();
