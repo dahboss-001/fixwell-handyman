@@ -198,14 +198,45 @@ const DB = {
     return data || [];
   },
 
-  // Test-mode purchase: goes in as pending, admin approves manually.
-  async purchaseCredits(pkg) {
+  // Purchase: goes in as pending. In test mode an admin approves it
+  // manually; with Paystack live it carries a payment reference and the
+  // verify-paystack edge function settles it after a verified charge.
+  async purchaseCredits(pkg, paymentRef) {
     const p = await this.profile();
-    const { data, error } = await this.client.from("credit_transactions").insert({
+    const row = {
       user_id: p.id, kind: "purchase", credits: pkg.credits,
       price_ngn: pkg.priceNGN, status: "pending",
-      note: pkg.label + " pack (test mode)",
-    }).select().single();
+      note: pkg.label + " pack" + (paymentRef ? "" : " (test mode)"),
+    };
+    if (paymentRef) row.payment_ref = paymentRef;
+    const { data, error } = await this.client.from("credit_transactions").insert(row).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async sessionToken() {
+    const { data } = await this.client.auth.getSession();
+    return data.session ? data.session.access_token : null;
+  },
+
+  /* ---------- messaging (one thread per booking) ---------- */
+  async listMessages(bookingId) {
+    const { data, error } = await this.client.from("messages")
+      .select("*").eq("booking_id", bookingId).order("created_at", { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async sendMessage(bookingId, body) {
+    const p = await this.profile();
+    const { error } = await this.client.from("messages").insert({
+      booking_id: bookingId, sender_id: p.id, sender_name: p.full_name, body,
+    });
+    if (error) throw error;
+  },
+
+  async getBooking(id) {
+    const { data, error } = await this.client.from("bookings").select("*").eq("id", id).single();
     if (error) throw error;
     return data;
   },

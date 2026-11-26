@@ -89,6 +89,13 @@ const CONFIG = {
     ],
   },
 
+  // PAYSTACK (not live yet) - paste the PUBLIC key to switch credit
+  // purchases from manual test mode to real checkout. Secret key never
+  // goes here; it lives as a Supabase secret used by the verify function.
+  paystack: {
+    publicKey: "",        // PLACEHOLDER - pk_test_... or pk_live_...
+  },
+
   faqs: [
     { q: "How do I pay for a job?", a: "You approve a quote in your account before work starts, then pay the artisan directly when the job is done. Bank transfer or cash, whatever suits you. We never take online payments on this site." },
     { q: "How are artisans screened?", a: "Before artisans join, we confirm their ID, assess their skill and check references on past work. New artisans start with supervised trial jobs. Confirm this matches your actual process and edit it here if needed." },

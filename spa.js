@@ -258,6 +258,7 @@ async function dashboardView() {
           </div>
         </div>` : ""}
       ${b.status === "received" ? `<button class="btn btn-outline btn-sm" data-cancel="${b.id}">Cancel booking</button>` : ""}
+      ${b.artisan_id ? `<a href="#/chat?booking=${b.id}" class="btn btn-outline btn-sm nav-route">💬 Messages</a>` : ""}
       ${b.status === "completed" && !reviewed ? `
         <form class="review-form" data-review="${b.id}" data-service="${esc(b.service)}" data-city="${esc(b.city)}">
           <b>How did it go? Leave a review</b>
@@ -459,6 +460,7 @@ async function artisanView(query) {
           <button type="submit" class="btn btn-primary btn-sm">Send quote</button>
         </form>` : ""}
       ${b.status === "in_progress" ? `<button class="btn btn-primary btn-sm" data-complete="${b.id}">Mark job completed</button>` : ""}
+      ${b.artisan_id === p.id ? `<a href="#/chat?booking=${b.id}" class="btn btn-outline btn-sm nav-route">💬 Messages</a>` : ""}
       ${b.status === "quote_sent" ? `<p class="job-meta">Quote of ${fmt(b.quote_amount)} sent. Waiting for the customer to approve.</p>` : ""}
     </div>`;
   };
@@ -521,13 +523,125 @@ async function artisanView(query) {
   }));
 }
 
+/* ================= MESSAGING (one thread per booking) ================= */
+let chatTimer = null;
+
+async function chatView(query) {
+  const u = await DB.user();
+  if (!u) { location.hash = "#/auth"; return; }
+  const p = await DB.profile();
+  let b;
+  try { b = await DB.getBooking(query.booking); } catch (e) { b = null; }
+  const isParty = b && (p.is_admin || b.customer_id === p.id || b.artisan_id === p.id);
+  if (!isParty) {
+    showApp(`<div class="panel-card center"><h2>No access</h2><p>This conversation belongs to a booking you are not part of.</p><a href="#/" class="btn btn-primary nav-route">Back to site</a></div>`);
+    return;
+  }
+  const other = b.customer_id === p.id ? (b.artisan_name || "the artisan") : (b.customer_name || "the customer");
+  const back = p.is_admin ? "#/admin" : (b.customer_id === p.id ? "#/dashboard" : "#/artisan");
+
+  async function paint() {
+    const msgs = await DB.listMessages(b.id);
+    const list = document.getElementById("chatList");
+    if (!list) return; // navigated away
+    list.innerHTML = msgs.length ? msgs.map(m => `
+      <div class="msg ${m.sender_id === p.id ? "mine" : "theirs"}">
+        <div class="msg-body">${esc(m.body)}</div>
+        <small>${esc(m.sender_name || "")} · ${new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small>
+      </div>`).join("") : `<p class="app-sub center" style="margin-top:24px">No messages yet. Say hello to ${esc(other)}.</p>`;
+    list.scrollTop = list.scrollHeight;
+  }
+
+  showApp(`
+    <div class="panel-card chat-card">
+      <a href="${back}" class="app-back nav-route">← Back</a>
+      <h2>💬 ${esc(b.service)} · ${esc(b.ref)}</h2>
+      <p class="app-sub">Chat with ${esc(other)} about this job.</p>
+      <div class="chat-list" id="chatList"></div>
+      <form id="chatForm" class="chat-form">
+        <input type="text" id="chatInput" required maxlength="500" placeholder="Type a message…" autocomplete="off">
+        <button type="submit" class="btn btn-primary btn-sm">Send</button>
+      </form>
+    </div>`);
+  await paint();
+
+  clearInterval(chatTimer);
+  chatTimer = setInterval(() => {
+    if (!location.hash.startsWith("#/chat")) { clearInterval(chatTimer); return; }
+    paint().catch(() => {});
+  }, 8000);
+
+  document.getElementById("chatForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const input = document.getElementById("chatInput");
+    const body = input.value.trim();
+    if (!body) return;
+    input.disabled = true;
+    try {
+      await DB.sendMessage(b.id, body);
+      input.value = "";
+      await paint();
+    } catch (err) { toast(err.message, true); }
+    input.disabled = false;
+    input.focus();
+  });
+}
+
 /* ================= CREDITS / WALLET VIEW ================= */
+let paystackLoading = null;
+function loadPaystack() {
+  if (window.PaystackPop) return Promise.resolve();
+  if (!paystackLoading) {
+    paystackLoading = new Promise((res, rej) => {
+      const s = document.createElement("script");
+      s.src = "https://js.paystack.co/v1/inline.js";
+      s.onload = res;
+      s.onerror = () => rej(new Error("Could not load the payment page. Check your connection and retry."));
+      document.head.appendChild(s);
+    });
+  }
+  return paystackLoading;
+}
+
+async function verifyPurchase(reference) {
+  try {
+    const tok = await DB.sessionToken();
+    const res = await fetch(CONFIG.supabase.url + "/functions/v1/verify-paystack", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + tok, "Content-Type": "application/json" },
+      body: JSON.stringify({ reference }),
+    });
+    const out = await res.json();
+    if (out.ok) { toast("Payment confirmed. Credits added to your wallet."); creditsView(); }
+    else toast(out.error || "Verification pending - your credits land shortly.", true);
+  } catch (e) {
+    toast("Verification pending - if you paid, the credits land shortly.", true);
+  }
+}
+
+async function paystackCheckout(pkg) {
+  const u = await DB.user();
+  const ref = "FWCR-" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 6).toUpperCase();
+  await DB.purchaseCredits(pkg, ref);
+  await loadPaystack();
+  window.PaystackPop.setup({
+    key: CONFIG.paystack.publicKey,
+    email: u.email,
+    amount: pkg.priceNGN * 100,
+    currency: "NGN",
+    ref,
+    callback: r => verifyPurchase(r.reference),
+    onClose: () => toast("Checkout closed. If you completed payment, your credits land shortly."),
+  }).openIframe();
+}
+
 async function creditsView() {
   const u = await DB.user();
   if (!u) { location.hash = "#/auth"; return; }
   const p = await DB.profile();
   const [bal, txs] = await Promise.all([DB.walletBalance(), DB.myTransactions()]);
   const home = p.role === "artisan" ? "#/artisan" : "#/dashboard";
+  const payLive = !!CONFIG.paystack.publicKey;
 
   const txRow = t => `
     <div class="tx-row">
@@ -549,7 +663,7 @@ async function creditsView() {
         <span class="wallet-bal">${bal}</span>
         <span class="wallet-label">credit${bal === 1 ? "" : "s"} available · unlocking a customer contact costs ${CONFIG.credits.unlockCost} credit${CONFIG.credits.unlockCost === 1 ? "" : "s"}</span>
       </div>
-      ${CONFIG.credits.testMode ? `<div class="testmode-banner">⚠️ TEST MODE - no payment is taken. You pick a pack, the Fixwell team confirms it manually, and the credits land in your wallet.</div>` : ""}
+      ${!payLive ? `<div class="testmode-banner">⚠️ TEST MODE - no payment is taken. You pick a pack, the Fixwell team confirms it manually, and the credits land in your wallet.</div>` : ""}
       <h3 class="dash-sec">Buy credits</h3>
       <div class="credit-packs">
         ${CONFIG.credits.packages.map((k, i) => `
@@ -567,11 +681,16 @@ async function creditsView() {
 
   document.querySelectorAll("[data-buy]").forEach(b => b.addEventListener("click", async () => {
     const pkg = CONFIG.credits.packages[+b.dataset.buy];
-    b.disabled = true; b.textContent = "Sending…";
+    b.disabled = true; b.textContent = payLive ? "Opening checkout…" : "Sending…";
     try {
-      await DB.purchaseCredits(pkg);
-      toast(`Request sent: ${pkg.credits} credits (${fmt(pkg.priceNGN)}). It appears in your history as pending.`);
-      creditsView();
+      if (payLive) {
+        await paystackCheckout(pkg);
+        b.disabled = false; b.textContent = `Get ${pkg.credits} credits`;
+      } else {
+        await DB.purchaseCredits(pkg);
+        toast(`Request sent: ${pkg.credits} credits (${fmt(pkg.priceNGN)}). It appears in your history as pending.`);
+        creditsView();
+      }
     } catch (e) {
       toast(e.message, true);
       b.disabled = false; b.textContent = `Get ${pkg.credits} credits`;
@@ -607,7 +726,7 @@ async function adminView() {
             </div>` : ""}
         </div>`).join("") : `<p class="app-sub">No applications yet.</p>`}
       <h3 class="dash-sec">Credit purchases (${purchases.length} pending)</h3>
-      ${CONFIG.credits.testMode ? `<div class="testmode-banner">⚠️ TEST MODE - no payment is processed. Approving a purchase simply credits the wallet.</div>` : ""}
+      ${!CONFIG.paystack.publicKey ? `<div class="testmode-banner">⚠️ TEST MODE - no payment is processed. Approving a purchase simply credits the wallet.</div>` : ""}
       ${purchases.length ? purchases.map(t => `
         <div class="job-card">
           <div class="job-head">
@@ -650,6 +769,7 @@ async function adminView() {
 /* ================= ROUTER ================= */
 async function router() {
   closeMobileNav();
+  clearInterval(chatTimer);
   const r = parseRoute();
   try {
     switch (r.name) {
@@ -659,6 +779,7 @@ async function router() {
       case "dashboard": return await dashboardView();
       case "artisan": return await artisanView(r.query);
       case "credits": return await creditsView();
+      case "chat": return await chatView(r.query);
       case "admin": return await adminView();
       default:
         showLanding();
