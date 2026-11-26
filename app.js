@@ -7,7 +7,7 @@ const CONFIG = {
   // BACKEND (Supabase project for this site - filled after setup)
   supabase: {
     url: "https://ckvhnrdteoouovsnlsvj.supabase.co",
-    anonKey: "",
+    anonKey: "sb_publishable_aI9GA29lbNRWnwq4UOomAQ_ydvB8X2E",
   },
 
   // CONTACT (PLACEHOLDERS - replace with the client's real details)
