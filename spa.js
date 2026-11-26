@@ -341,6 +341,38 @@ async function dashboardView() {
     </div>`;
   }).join("");
 
+  /* ---------- landlord overview: all properties, requests, history at a glance ---------- */
+  const ACTIVE_STATUSES = ["received", "assigned", "quote_sent", "in_progress"];
+  const landlordOverview = props.length ? (() => {
+    const active = bookings.filter(b => ACTIVE_STATUSES.includes(b.status));
+    const done = bookings.filter(b => b.status === "completed");
+    const cards = props.map(pr => {
+      const pb = bookings.filter(b => b.property_id === pr.id);
+      const pa = pb.filter(b => ACTIVE_STATUSES.includes(b.status));
+      const pd = pb.filter(b => b.status === "completed");
+      const lastEntry = history.filter(h => h.property_id === pr.id)
+        .slice().sort((a, b) => new Date(b.done_at) - new Date(a.done_at))[0];
+      const nextAppt = pa.filter(b => b.appointment_at && new Date(b.appointment_at) > new Date())
+        .slice().sort((a, b) => new Date(a.appointment_at) - new Date(b.appointment_at))[0];
+      return `
+      <div class="job-card">
+        <div class="job-head">
+          <span class="svc-icon">🏢</span>
+          <div class="job-title"><b>${esc(pr.label)}</b><span class="job-meta">${esc(pr.type)}${pr.address ? " · " + esc(pr.address) : ""}</span></div>
+        </div>
+        ${pa.length ? pa.map(b => `<p class="job-meta">🔧 ${esc(b.service)} · ${esc(b.ref)} · ${esc(STATUS_LABEL[b.status] || b.status)}</p>`).join("") : `<p class="job-meta">No active requests.</p>`}
+        ${nextAppt ? `<p class="appt-line">🗓️ Next appointment: <b>${esc(new Date(nextAppt.appointment_at).toLocaleString())}</b></p>` : ""}
+        <p class="job-meta">✅ ${pd.length} ${pd.length === 1 ? "job" : "jobs"} completed${lastEntry ? " · Last service: " + esc(new Date(lastEntry.done_at).toLocaleDateString()) : ""}</p>
+      </div>`;
+    }).join("");
+    const unassigned = active.filter(b => !b.property_id);
+    return `
+      <h3 class="dash-subhead">🏢 Landlord overview</h3>
+      <div class="sub-strip">📊 <b>${props.length}</b> ${props.length === 1 ? "property" : "properties"} · <b>${active.length}</b> active ${active.length === 1 ? "request" : "requests"} · <b>${done.length}</b> ${done.length === 1 ? "job" : "jobs"} completed</div>
+      ${cards}
+      ${unassigned.length ? `<p class="job-meta" style="margin:0 0 10px">📌 ${unassigned.length} active ${unassigned.length === 1 ? "request" : "requests"} not linked to a property yet: ${unassigned.map(b => esc(b.ref)).join(", ")}</p>` : ""}`;
+  })() : "";
+
   const rows = await Promise.all(bookings.map(async b => {
     const reviewed = b.status === "completed" ? await DB.myReviewFor(b.id) : false;
     const photos = await DB.bookingPhotos(b.id);
@@ -404,6 +436,7 @@ async function dashboardView() {
       ${activeSub ? `<div class="sub-strip">🗓️ Active plan: <b>${esc(activeSub.plan)}</b> (${esc(activeSub.billing)}, ${fmt(activeSub.amount)}) <a href="#plans" class="nav-anchor">Change</a></div>` : ""}
       ${!activeSub && requestedSub ? `<div class="sub-strip">🗓️ Plan request sent: <b>${esc(requestedSub.plan)}</b> (${esc(requestedSub.billing)}) - the Fixwell team will contact you to set it up. <a href="#plans" class="nav-anchor">All plans</a></div>` : ""}
       <div class="sub-strip">🪙 Credit wallet: <b>${walletBal} credit${walletBal === 1 ? "" : "s"}</b> <a href="#/credits" class="nav-route">Buy credits</a></div>
+      ${landlordOverview}
       <h3 class="dash-subhead">🏠 My home care</h3>
       ${propCards}
       <div class="job-card">
