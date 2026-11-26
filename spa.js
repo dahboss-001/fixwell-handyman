@@ -576,9 +576,30 @@ async function artisanView(query) {
       toast("Quote sent to the customer."); artisanView({});
     } catch (err) { toast(err.message, true); }
   }));
-  document.querySelectorAll("[data-complete]").forEach(b => b.addEventListener("click", async () => {
-    try { await DB.completeBooking(b.dataset.complete); toast("Marked completed. Nice work!"); artisanView({}); }
-    catch (e) { toast(e.message, true); }
+  document.querySelectorAll("[data-reject-lead]").forEach(b => b.addEventListener("click", async () => {
+    b.disabled = true;
+    try { await DB.rejectLead(b.dataset.rejectLead); artisanView({}); }
+    catch (e) { toast(e.message, true); b.disabled = false; }
+  }));
+  document.querySelectorAll("[data-appt]").forEach(f => f.addEventListener("submit", async e => {
+    e.preventDefault();
+    const at = f.querySelector(".appt-input").value;
+    if (!at) { toast("Pick a date and time first", true); return; }
+    try {
+      await DB.setAppointment(f.dataset.appt, new Date(at).toISOString(), f.querySelector(".appt-note").value.trim() || null);
+      toast("Appointment set. The customer can see it now."); artisanView({});
+    } catch (err) { toast(err.message, true); }
+  }));
+  document.querySelectorAll("[data-complete-form]").forEach(f => f.addEventListener("submit", async e => {
+    e.preventDefault();
+    const btn = f.querySelector("button[type=submit]");
+    btn.disabled = true;
+    try {
+      const files = [...f.querySelector(".done-photos").files].slice(0, 3);
+      for (const file of files) { await DB.uploadJobPhoto(f.dataset.completeForm, file, "completion"); }
+      await DB.completeBooking(f.dataset.completeForm);
+      toast("Marked completed. Nice work!"); artisanView({});
+    } catch (e2) { toast(e2.message, true); btn.disabled = false; }
   }));
   document.querySelectorAll("[data-unlock]").forEach(b => b.addEventListener("click", async () => {
     b.disabled = true;
