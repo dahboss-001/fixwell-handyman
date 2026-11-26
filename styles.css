@@ -490,3 +490,23 @@ img{max-width:100%}
 .audit-action { font-weight: 700; font-size: 13.5px; }
 .audit-target { font-size: 13.5px; }
 .audit-row small { color: #999; width: 100%; }
+
+/* ---------- patch-004: appointments, photos, disputes, contact ---------- */
+.appt-form{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.appt-form .appt-input,.appt-form .appt-note{flex:1;min-width:140px;padding:9px 12px;border:1px solid #e3e7ee;border-radius:10px;font-size:13.5px;font-family:inherit}
+.appt-line{font-size:13px;color:var(--ink-soft);margin-top:8px}
+.photos-line{margin-top:8px}
+.photos-line a{color:var(--accent);font-weight:600}
+.complete-form{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center}
+.complete-form .done-photos{flex:1;min-width:160px;font-size:13px}
+.job-card form + .modal-note{text-align:left;margin-top:6px}
+.contact-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:18px}
+.contact-card{background:#fff;border:1px solid #e8ecf2;border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.contact-card span:first-child{font-size:22px}
+.contact-card a{color:var(--accent);font-weight:600;word-break:break-all}
+.credits-explainer{margin-top:22px;background:#fff;border:1px solid #e8ecf2;border-radius:14px;padding:18px 20px}
+.credits-explainer h4{margin:0 0 8px}
+.credits-explainer .modal-note{text-align:left}
+@media (max-width:640px){
+  .appt-form,.complete-form{flex-direction:column;align-items:stretch}
+}

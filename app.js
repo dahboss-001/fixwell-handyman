@@ -14,6 +14,13 @@ const CONFIG = {
   email: "hello@fixwell.example",    // PLACEHOLDER
   address: "Your office address here", // PLACEHOLDER
   hours: "Mon to Sat, 8am to 6pm",   // PLACEHOLDER
+  // Phone and WhatsApp are blank until the client supplies real numbers;
+  // the matching contact cards and footer rows stay hidden while blank.
+  support: {
+    phone: "",                       // PLACEHOLDER e.g. "+2348000000000"
+    whatsapp: "",                    // PLACEHOLDER digits only, e.g. "2348000000000"
+    email: "",                       // falls back to CONFIG.email above when blank
+  },
 
   cities: ["Awka", "Aba"],
   areasNote: "Serving Awka (Anambra) and Aba (Abia)",
@@ -98,11 +105,11 @@ const CONFIG = {
 
   faqs: [
     { q: "How do I pay for a job?", a: "You approve a quote in your account before work starts, then pay the artisan directly when the job is done. Bank transfer or cash, whatever suits you. We never take online payments on this site." },
-    { q: "How are artisans screened?", a: "Before artisans join, we confirm their ID, assess their skill and check references on past work. New artisans start with supervised trial jobs. Confirm this matches your actual process and edit it here if needed." },
+    { q: "How are artisans screened?", a: "Every artisan applies inside the app and the Fixwell team reviews each application by hand before it is approved. Only approved artisans can see and accept jobs, and customers review them after every completed job." },
     { q: "Which areas do you cover?", a: "We currently serve Awka in Anambra State and Aba in Abia State, including surrounding neighbourhoods." },
     { q: "Is the price guide the final price?", a: "No. The guide shows typical ranges so you know the going rate. Your exact quote is sent to your account before any work begins, and you approve it first." },
     { q: "What if something goes wrong after a job?", a: "Tell us through your booking within 7 days and we will send the artisan back to put it right at no extra labour cost." },
-    { q: "Do you handle emergencies?", a: "Yes. Place an emergency booking and it is flagged as urgent for artisans. Burst pipes, power faults and broken locks get priority." },
+    { q: "Do you handle emergencies?", a: "Yes. Place an emergency booking and it jumps the queue and is shown first to available artisans in your city. How fast someone arrives depends on availability in your area, so we can't promise instant dispatch, but urgent jobs are always surfaced first." },
   ],
 };
 /* ================== END OF CONFIG ================== */
@@ -197,6 +204,12 @@ function renderAplans() {
       <ul>${p.features.map(f => `<li>${esc(f)}</li>`).join("")}</ul>
       <a href="#/artisan?plan=${i}" class="btn ${p.popular ? "btn-primary" : "btn-outline"} btn-block nav-route">${p.amount === 0 ? "Start free" : "Choose " + esc(p.name)}</a>
     </div>`).join("");
+  const note = document.getElementById("creditsNote");
+  if (note) {
+    const c = CONFIG.credits;
+    note.innerHTML = `Unlocking a customer's contact on a lead costs <b>${c.unlockCost} credit${c.unlockCost === 1 ? "" : "s"}</b>. Credit packs: ` +
+      c.packages.map(x => `<b>${x.credits} credits = ₦${x.priceNGN.toLocaleString("en-NG")}</b> (${esc(x.label)})`).join(" · ");
+  }
 }
 
 function renderFaq() {
@@ -246,6 +259,25 @@ function renderContact() {
   set("footerAddress", "📍 " + CONFIG.address);
   set("footerEmail", "✉️ " + CONFIG.email);
   set("footerAreas", "🗺️ " + CONFIG.areasNote);
+  const sup = CONFIG.support || {};
+  const supEmail = sup.email || CONFIG.email;
+  if (sup.phone) set("footerPhone", "📞 " + sup.phone);
+  if (sup.whatsapp) set("footerWhats", "💬 WhatsApp: +" + sup.whatsapp);
+  if (CONFIG.hours) set("footerHours", "🕒 " + CONFIG.hours);
+  const phoneCard = document.getElementById("contactPhoneCard");
+  const whatsCard = document.getElementById("contactWhatsCard");
+  if (sup.phone && phoneCard) {
+    phoneCard.hidden = false;
+    const a = document.getElementById("contactPhone");
+    a.textContent = sup.phone; a.href = "tel:" + sup.phone.replace(/[^+\d]/g, "");
+  }
+  if (sup.whatsapp && whatsCard) {
+    whatsCard.hidden = false;
+    document.getElementById("contactWhats").href = "https://wa.me/" + sup.whatsapp.replace(/\D/g, "");
+  }
+  const cEmail = document.getElementById("contactEmail");
+  if (cEmail) { cEmail.textContent = supEmail; cEmail.href = "mailto:" + supEmail; }
+  set("contactHours", CONFIG.hours);
   const fs = document.getElementById("footerServices");
   if (fs) fs.innerHTML = CONFIG.services.slice(0, 6).map(s => `<a href="#/book?service=${CONFIG.services.indexOf(s)}" class="nav-route">${esc(s.name)}</a>`).join("");
   set("year", new Date().getFullYear());

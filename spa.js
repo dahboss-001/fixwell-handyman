@@ -196,26 +196,40 @@ async function bookView(query) {
           <select id="bkUrgency">
             <option${urgent ? "" : " selected"}>Flexible, this week is fine</option>
             <option>Soon, within 1 to 2 days</option>
-            <option${urgent ? " selected" : ""}>EMERGENCY, today</option>
+            <option${urgent ? " selected" : ""}>🚨 EMERGENCY - jumps the queue</option>
           </select>
         </label>
+        <p class="modal-note" id="bkUrgencyNote" hidden>🚨 Emergency bookings are shown first to available artisans. We can't promise instant dispatch - how fast someone arrives depends on artisan availability in your area.</p>
+        <label>Preferred date (optional)<input type="date" id="bkDate" min="${new Date().toISOString().slice(0, 10)}"></label>
+        <label>Photos (optional, up to 3)<input type="file" id="bkPhotos" accept="image/*" multiple></label>
+        <p class="modal-note">Photos help the artisan quote accurately. They are only visible to you, your artisan and the Fixwell team.</p>
         <label>Describe the job<textarea id="bkDesc" rows="4" required placeholder="e.g. Kitchen tap is leaking and needs replacement"></textarea></label>
         <button type="submit" class="btn btn-primary btn-block" id="bkSubmit">Send booking request</button>
       </form>
     </div>`);
+  const urgSel = document.getElementById("bkUrgency");
+  const urgNote = document.getElementById("bkUrgencyNote");
+  const syncUrg = () => { urgNote.hidden = !urgSel.value.includes("EMERGENCY"); };
+  urgSel.addEventListener("change", syncUrg); syncUrg();
   document.getElementById("bookFormApp").addEventListener("submit", async e => {
     e.preventDefault();
     const btn = document.getElementById("bkSubmit");
     btn.disabled = true; btn.textContent = "Sending…";
+    const files = [...document.getElementById("bkPhotos").files].slice(0, 3);
     try {
       const b = await DB.createBooking({
         service: document.getElementById("bkService").value,
         city: document.getElementById("bkCity").value,
         area: document.getElementById("bkArea").value.trim(),
-        urgency: document.getElementById("bkUrgency").value,
+        urgency: urgSel.value,
         description: document.getElementById("bkDesc").value.trim(),
         phone: document.getElementById("bkPhone").value.trim(),
+        preferredDate: document.getElementById("bkDate").value || null,
       });
+      if (files.length) {
+        btn.textContent = "Uploading photos…";
+        for (const f of files) { try { await DB.uploadJobPhoto(b.id, f, "booking"); } catch (e2) { /* booking itself is safe */ } }
+      }
       showApp(`
         <div class="panel-card center">
           <span class="popup-emoji">✅</span>
@@ -231,6 +245,43 @@ async function bookView(query) {
   });
 }
 
+/* ================= REPORT A PROBLEM (disputes) ================= */
+async function reportView(query) {
+  const u = await DB.user();
+  if (!u) { location.hash = "#/auth"; return; }
+  const p = await DB.profile();
+  let b = null;
+  if (query.booking) { try { b = await DB.getBooking(query.booking); } catch (e) { b = null; } }
+  const mine = await DB.myDisputes();
+  const dash = p.is_admin ? "#/admin" : (p.role === "artisan" ? "#/artisan" : "#/dashboard");
+  showApp(`
+    <div class="panel-card chat-card">
+      <a href="${dash}" class="app-back nav-route">← Back</a>
+      <h2>⚠️ Report a problem</h2>
+      <p class="app-sub">${b ? `About booking <b class="ref-chip">${esc(b.ref)}</b> (${esc(b.service)}).` : "Tell us what went wrong."} The Fixwell team reviews every report.</p>
+      <form id="reportForm" class="profile-form">
+        <label>What happened?
+          <textarea id="rpText" rows="4" required maxlength="1000" placeholder="Describe the problem - what was agreed, what happened, and what you would like done."></textarea>
+        </label>
+        <button type="submit" class="btn btn-primary btn-sm">Send report</button>
+      </form>
+      ${mine.length ? `<h3 class="dash-sec" style="margin-top:18px">My reports (${mine.length})</h3>` + mine.map(d => `
+        <div class="audit-row">
+          <span class="audit-action">${d.status === "resolved" ? "✅ Resolved" : "🕓 Open"}</span>
+          <span class="audit-target">${esc(d.text.slice(0, 80))}${d.text.length > 80 ? "…" : ""}</span>
+          <small>${new Date(d.created_at).toLocaleString()}${d.resolution_note ? " · Fixwell: " + esc(d.resolution_note) : ""}</small>
+        </div>`).join("") : ""}
+    </div>`);
+  document.getElementById("reportForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    try {
+      await DB.fileDispute(query.booking || null, document.getElementById("rpText").value.trim());
+      toast("Report sent. The Fixwell team will review it.");
+      reportView(query);
+    } catch (err) { toast(err.message, true); }
+  });
+}
+
 /* ================= CUSTOMER DASHBOARD ================= */
 async function dashboardView() {
   const u = await DB.user();
@@ -241,6 +292,7 @@ async function dashboardView() {
 
   const rows = await Promise.all(bookings.map(async b => {
     const reviewed = b.status === "completed" ? await DB.myReviewFor(b.id) : false;
+    const photos = await DB.bookingPhotos(b.id);
     return `
     <div class="job-card">
       <div class="job-head">
@@ -250,7 +302,9 @@ async function dashboardView() {
         ${badge(b.status)}
       </div>
       <p class="job-desc">${esc(b.description)}</p>
-      <p class="job-meta">Urgency: ${esc(b.urgency)}${b.artisan_name ? " · Artisan: " + esc(b.artisan_name) : ""}</p>
+      <p class="job-meta">Urgency: ${esc(b.urgency)}${b.preferred_date ? " · Preferred: " + esc(new Date(b.preferred_date).toLocaleDateString()) : ""}${b.artisan_name ? " · Artisan: " + esc(b.artisan_name) : ""}</p>
+      ${b.appointment_at ? `<p class="appt-line">🗓️ Appointment: <b>${esc(new Date(b.appointment_at).toLocaleString())}</b>${b.appointment_note ? " · " + esc(b.appointment_note) : ""}</p>` : ""}
+      ${photos.length ? `<p class="job-meta photos-line">📷 ${photos.map((ph, i) => `<a href="${ph.url}" target="_blank" rel="noopener">photo ${i + 1}${ph.kind === "completion" ? " (done)" : ""}</a>`).join(" · ")}</p>` : ""}
       ${timeline(b.status)}
       ${b.status === "quote_sent" ? `
         <div class="quote-box">
@@ -262,6 +316,7 @@ async function dashboardView() {
         </div>` : ""}
       ${b.status === "received" ? `<button class="btn btn-outline btn-sm" data-cancel="${b.id}">Cancel booking</button>` : ""}
       ${b.artisan_id ? `<a href="#/chat?booking=${b.id}" class="btn btn-outline btn-sm nav-route">💬 Messages</a>` : ""}
+      ${b.status !== "cancelled" ? `<a href="#/report?booking=${b.id}" class="btn btn-outline btn-sm nav-route" title="Report a problem">⚠️ Report a problem</a>` : ""}
       ${b.status === "completed" && !reviewed ? `
         <form class="review-form" data-review="${b.id}" data-service="${esc(b.service)}" data-city="${esc(b.city)}">
           <b>How did it go? Leave a review</b>
@@ -429,16 +484,18 @@ async function artisanView(query) {
   }
 
   // approved: leads + membership + credits
-  const [leads, walletBal, unlocks] = await Promise.all([DB.listLeads(), DB.walletBalance(), DB.myUnlocks()]);
+  const [leads, walletBal, unlocks, rejected] = await Promise.all([DB.listLeads(), DB.walletBalance(), DB.myUnlocks(), DB.myRejections()]);
   const mine = leads.filter(b => b.artisan_id === p.id && !["completed", "cancelled"].includes(b.status));
   const past = leads.filter(b => b.artisan_id === p.id && ["completed", "cancelled"].includes(b.status));
-  const open = leads.filter(b => b.status === "received" && b.city === p.city);
+  const open = leads.filter(b => b.status === "received" && b.city === p.city && !rejected.has(b.id));
   const prePlan = query.plan != null ? CONFIG.artisanPlans[+query.plan] : null;
   const contacts = {};
   await Promise.all(leads.filter(b => unlocks.has(b.id)).map(async b => {
     contacts[b.id] = await DB.contactFor(b.id);
   }));
   const cost = CONFIG.credits.unlockCost;
+  const photosBy = {};
+  await Promise.all([...open, ...mine].map(async b => { photosBy[b.id] = await DB.bookingPhotos(b.id); }));
 
   const leadCard = b => {
     const unlocked = unlocks.has(b.id);
@@ -455,15 +512,28 @@ async function artisanView(query) {
         ${badge(b.status)}
       </div>
       <p class="job-desc">${esc(b.description)}</p>
-      <p class="job-meta">Urgency: ${esc(b.urgency)} · Customer: ${esc(b.customer_name || "")}</p>
+      <p class="job-meta">Urgency: ${esc(b.urgency)}${b.preferred_date ? " · Preferred: " + esc(new Date(b.preferred_date).toLocaleDateString()) : ""} · Customer: ${esc(b.customer_name || "")}</p>
+      ${(photosBy[b.id] || []).length ? `<p class="job-meta photos-line">📷 ${photosBy[b.id].map((ph, i) => `<a href="${ph.url}" target="_blank" rel="noopener">photo ${i + 1}${ph.kind === "completion" ? " (done)" : ""}</a>`).join(" · ")}</p>` : ""}
       ${contactBit}
-      ${b.status === "received" ? `<button class="btn btn-primary btn-sm" data-accept="${b.id}">Accept this job</button>` : ""}
+      ${b.status === "received" ? `<button class="btn btn-primary btn-sm" data-accept="${b.id}">Accept this job</button>
+        <button class="btn btn-outline btn-sm" data-reject-lead="${b.id}">Not for me</button>` : ""}
       ${b.status === "assigned" ? `
         <form class="quote-form" data-quote="${b.id}">
           <input type="number" min="500" step="100" required placeholder="Your quote in ₦" class="quote-input">
           <button type="submit" class="btn btn-primary btn-sm">Send quote</button>
+        </form>
+        <form class="appt-form" data-appt="${b.id}">
+          <input type="datetime-local" class="appt-input" aria-label="Appointment date and time">
+          <input type="text" class="appt-note" maxlength="80" placeholder="Note (optional, e.g. gate code)">
+          <button type="submit" class="btn btn-outline btn-sm">🗓️ Set appointment</button>
         </form>` : ""}
-      ${b.status === "in_progress" ? `<button class="btn btn-primary btn-sm" data-complete="${b.id}">Mark job completed</button>` : ""}
+      ${b.appointment_at ? `<p class="appt-line">🗓️ Appointment: <b>${esc(new Date(b.appointment_at).toLocaleString())}</b>${b.appointment_note ? " · " + esc(b.appointment_note) : ""}</p>` : ""}
+      ${b.status === "in_progress" ? `
+        <form class="complete-form" data-complete-form="${b.id}">
+          <input type="file" class="done-photos" accept="image/*" multiple aria-label="Completion photos">
+          <button type="submit" class="btn btn-primary btn-sm">Mark job completed</button>
+        </form>
+        <p class="modal-note">Add up to 3 photos of the finished work (optional but builds your record).</p>` : ""}
       ${b.artisan_id === p.id ? `<a href="#/chat?booking=${b.id}" class="btn btn-outline btn-sm nav-route">💬 Messages</a>` : ""}
       ${b.status === "quote_sent" ? `<p class="job-meta">Quote of ${fmt(b.quote_amount)} sent. Waiting for the customer to approve.</p>` : ""}
     </div>`;
@@ -474,7 +544,7 @@ async function artisanView(query) {
       <div class="dash-head">
         <div>
           <h2>Artisan dashboard</h2>
-          <p class="app-sub">${esc(p.full_name)} · ${esc(app.trade)} · ${esc(p.city)} · <span class="status-badge st-approved">Approved</span></p>
+          <p class="app-sub">${esc(p.full_name)} · ${esc(app.trade)} · ${esc(p.city)} · <span class="status-badge st-approved">✅ Approved (application reviewed)</span></p>
         </div>
       </div>
       <div class="sub-strip">💳 Membership: <b>${membership ? esc(membership.plan) : "Starter (free)"}</b> ${membership ? "" : `<a href="#artisans" class="nav-anchor">Upgrade</a>`}</div>
@@ -786,7 +856,7 @@ async function adminView() {
   if (!u) { location.hash = "#/auth"; return; }
   const p = await DB.profile();
   if (!p || !p.is_admin) { showApp(`<div class="panel-card center"><h2>Admins only</h2><p>This area is for the Fixwell team.</p><a href="#/" class="btn btn-primary nav-route">Back to site</a></div>`); return; }
-  const [apps, bookings, purchases, users, artisans, audit, allReviews] = await Promise.all([
+  const [apps, bookings, purchases, users, artisans, audit, allReviews, disputes] = await Promise.all([
     DB.listApplications(),
     DB.client.from("bookings").select("*").order("created_at", { ascending: false }).then(r => r.data || []),
     DB.pendingPurchases(),
@@ -796,6 +866,7 @@ async function adminView() {
     DB.adminAllReviews(),
   ]);
   const openStatuses = ["received", "assigned", "quote_sent", "in_progress"];
+  const bookingRefs = {}; bookings.forEach(b => { bookingRefs[b.id] = b.ref; });
   const artisanOpts = b => artisans
     .map(a => `<option value="${a.user_id}" ${a.user_id === b.artisan_id ? "disabled" : ""}>${esc(a.full_name)} (${esc(a.trade)}, ${esc(a.city)})</option>`)
     .join("");
@@ -856,6 +927,17 @@ async function adminView() {
             <button class="btn btn-outline btn-sm" data-adjust="${x.id}" data-name="${esc(x.full_name || "")}">Adjust wallet</button>
           </div>` : ""}
         </div>`).join("") : `<p class="app-sub">No users yet.</p>`}
+      <h3 class="dash-sec">Problem reports (${disputes.filter(d => d.status !== "resolved").length} open)</h3>
+      ${disputes.length ? disputes.map(d => `
+        <div class="job-card">
+          <div class="job-head">
+            <div class="job-title"><b>${esc(d.user_name || "(user)")}</b><span class="job-meta">${d.booking_id && bookingRefs[d.booking_id] ? "booking " + esc(bookingRefs[d.booking_id]) + " · " : ""}${new Date(d.created_at).toLocaleString()}</span></div>
+            <span class="status-badge ${d.status === "resolved" ? "st-completed" : "st-received"}">${d.status === "resolved" ? "Resolved" : "Open"}</span>
+          </div>
+          <p class="job-desc">${esc(d.text)}</p>
+          ${d.resolution_note ? `<p class="job-meta">Fixwell: ${esc(d.resolution_note)}</p>` : ""}
+          ${d.status !== "resolved" ? `<button class="btn btn-outline btn-sm" data-resolve-dispute="${d.id}">Mark resolved</button>` : ""}
+        </div>`).join("") : `<p class="app-sub">No problem reports yet.</p>`}
       <h3 class="dash-sec">Reviews (${allReviews.length})</h3>
       ${allReviews.length ? allReviews.map(rv => `
         <div class="job-card">
@@ -873,6 +955,12 @@ async function adminView() {
           <small>${esc(a.admin_name || "")} · ${new Date(a.created_at).toLocaleString()}${a.reason ? " · " + esc(a.reason) : ""}</small>
         </div>`).join("") : `<p class="app-sub">No admin actions recorded yet.</p>`}
     </div>`);
+  document.querySelectorAll("[data-resolve-dispute]").forEach(b => b.addEventListener("click", async () => {
+    const note = (window.prompt("Resolution note (shown to the user):") || "").trim();
+    if (!note) return;
+    try { await DB.adminResolveDispute(b.dataset.resolveDispute, note); toast("Report resolved."); adminView(); }
+    catch (e) { toast(e.message, true); }
+  }));
   document.querySelectorAll("[data-approve-app]").forEach(b => b.addEventListener("click", async () => {
     try { await DB.setApplicationStatus(b.dataset.approveApp, "approved"); toast("Artisan approved."); adminView(); }
     catch (e) { toast(e.message, true); }
@@ -947,6 +1035,7 @@ async function router() {
       case "auth": return authView(r.query);
       case "book": return await bookView(r.query);
       case "subscribe": return await subscribeView(r.query);
+      case "report": return await reportView(r.query);
       case "dashboard": return await dashboardView();
       case "artisan": return await artisanView(r.query);
       case "credits": return await creditsView();

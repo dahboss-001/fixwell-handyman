@@ -55,12 +55,13 @@ const DB = {
   },
 
   /* ---------- bookings ---------- */
-  async createBooking({ service, city, area, urgency, description, phone }) {
+  async createBooking({ service, city, area, urgency, description, phone, preferredDate }) {
     const p = await this.profile();
     const ref = "FW-" + Math.random().toString(36).slice(2, 6).toUpperCase();
     const { data, error } = await this.client.from("bookings").insert({
       ref, customer_id: p.id, customer_name: p.full_name,
       service, city, area, urgency, description, status: "received",
+      preferred_date: preferredDate || null,
     }).select().single();
     if (error) throw error;
     const { error: cErr } = await this.client.from("booking_contacts").insert({
@@ -380,6 +381,78 @@ const DB = {
 
   async adminAdjustWallet(userId, credits, reason) {
     const { error } = await this.client.rpc("admin_adjust_wallet", { p_user: userId, p_credits: credits, p_reason: reason });
+    if (error) throw error;
+  },
+
+  /* ---------- job photos (Supabase Storage, private bucket) ---------- */
+  async uploadJobPhoto(bookingId, file, kind) {
+    const u = await this.user();
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+    const path = `${u.id}/${bookingId}/${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+    const { error } = await this.client.storage.from("job-photos").upload(path, file, { upsert: false });
+    if (error) throw error;
+    const { error: rErr } = await this.client.from("booking_photos").insert({
+      booking_id: bookingId, uploader_id: u.id, kind, path,
+    });
+    if (rErr) throw rErr;
+    return path;
+  },
+
+  async bookingPhotos(bookingId) {
+    const { data, error } = await this.client.from("booking_photos")
+      .select("*").eq("booking_id", bookingId).order("created_at");
+    if (error) return [];
+    const out = [];
+    for (const row of data || []) {
+      const { data: s } = await this.client.storage.from("job-photos").createSignedUrl(row.path, 3600);
+      if (s && s.signedUrl) out.push({ ...row, url: s.signedUrl });
+    }
+    return out;
+  },
+
+  /* ---------- artisan: pass on a lead / appointment ---------- */
+  async rejectLead(bookingId) {
+    const p = await this.profile();
+    const { error } = await this.client.from("artisan_rejections").insert({ booking_id: bookingId, artisan_id: p.id });
+    if (error) throw error;
+  },
+
+  async myRejections() {
+    const p = await this.profile();
+    const { data } = await this.client.from("artisan_rejections").select("booking_id").eq("artisan_id", p.id);
+    return new Set((data || []).map(r => r.booking_id));
+  },
+
+  async setAppointment(bookingId, at, note) {
+    const { error } = await this.client.from("bookings")
+      .update({ appointment_at: at || null, appointment_note: note || null }).eq("id", bookingId);
+    if (error) throw error;
+  },
+
+  /* ---------- disputes ---------- */
+  async fileDispute(bookingId, text) {
+    const p = await this.profile();
+    const { error } = await this.client.from("disputes").insert({
+      user_id: p.id, user_name: p.full_name, booking_id: bookingId || null, text,
+    });
+    if (error) throw error;
+  },
+
+  async myDisputes() {
+    const u = await this.user();
+    const { data } = await this.client.from("disputes")
+      .select("*").eq("user_id", u.id).order("created_at", { ascending: false });
+    return data || [];
+  },
+
+  async adminListDisputes() {
+    const { data } = await this.client.from("disputes")
+      .select("*").order("created_at", { ascending: false }).limit(50);
+    return data || [];
+  },
+
+  async adminResolveDispute(id, note) {
+    const { error } = await this.client.rpc("admin_resolve_dispute", { p_dispute: id, p_note: note });
     if (error) throw error;
   },
 

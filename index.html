@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=11">
+<link rel="stylesheet" href="styles.css?v=12">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛠️</text></svg>">
 </head>
 <body>
@@ -89,7 +89,7 @@
   <div class="container emergency-inner">
     <div>
       <strong>🚨 Urgent repair?</strong>
-      <span>Burst pipe, power fault, broken lock. Place an emergency booking and it jumps the queue.</span>
+      <span>Burst pipe, power fault, broken lock. Emergency bookings jump the queue and are shown first to available artisans. Response time depends on availability in your area; we can't promise instant dispatch.</span>
     </div>
     <a href="#/book?urgent=1" class="btn btn-light nav-route">Place emergency booking →</a>
   </div>
@@ -110,7 +110,7 @@
     <h2>Know the going rate before anyone picks up a tool</h2>
     <p class="section-sub">Typical price ranges for common jobs. Your exact quote arrives in your account before work begins, and you approve it first.</p>
     <div class="price-grid" id="priceGrid"></div>
-    <p class="price-note">Prices are guides for standard jobs and may vary with parts, job size and location. You always approve the final quote first.</p>
+    <p class="price-note">These ranges are indicative estimates, to be validated against real completed jobs, and may vary with parts, job size and location. You always approve the final quote first.</p>
   </div>
 </section>
 
@@ -186,6 +186,11 @@
     <h3 class="artisan-plans-title">Artisan membership plans</h3>
     <p class="section-sub">Start free, upgrade when your job volume grows. Plans are chosen in your artisan dashboard.</p>
     <div class="aplans-grid" id="aplansGrid"></div>
+    <div class="credits-explainer">
+      <h4>Job lead credits</h4>
+      <p id="creditsNote"></p>
+      <p class="modal-note">Credits are bought in your artisan dashboard after sign-up. Prices shown here so you know the cost before joining.</p>
+    </div>
   </div>
 </section>
 
@@ -222,6 +227,20 @@
   </div>
 </section>
 
+<section class="section section-alt" id="contact">
+  <div class="container">
+    <p class="kicker">TALK TO US</p>
+    <h2>Contact Fixwell</h2>
+    <p class="section-sub">Book in the app for the fastest service, or reach the team directly.</p>
+    <div class="contact-grid">
+      <div class="contact-card" id="contactPhoneCard" hidden><span>📞</span><b>Phone</b><a id="contactPhone" href="#"></a></div>
+      <div class="contact-card" id="contactWhatsCard" hidden><span>💬</span><b>WhatsApp</b><a id="contactWhats" href="#" target="_blank" rel="noopener">Chat with us</a></div>
+      <div class="contact-card"><span>✉️</span><b>Email</b><a id="contactEmail" href="#"></a></div>
+      <div class="contact-card"><span>🕒</span><b>Hours</b><span id="contactHours"></span></div>
+    </div>
+  </div>
+</section>
+
 <footer class="footer">
   <div class="container footer-grid">
     <div class="footer-brand">
@@ -244,6 +263,9 @@
       <h4>Contact</h4>
       <p id="footerAddress"></p>
       <p id="footerEmail"></p>
+      <p id="footerPhone"></p>
+      <p id="footerWhats"></p>
+      <p id="footerHours"></p>
       <p id="footerAreas"></p>
     </div>
   </div>
@@ -272,8 +294,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=11"></script>
-<script src="db.js?v=11"></script>
-<script src="spa.js?v=11"></script>
+<script src="app.js?v=12"></script>
+<script src="db.js?v=12"></script>
+<script src="spa.js?v=12"></script>
 </body>
 </html>
