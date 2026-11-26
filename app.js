@@ -257,12 +257,15 @@ function renderContact() {
   set("topbarCities", "📍 " + CONFIG.cities.join(" & "));
   set("footerTagline", "Screened local artisans for homes and businesses. " + CONFIG.areasNote + ".");
   set("footerAddress", "📍 " + CONFIG.address);
-  set("footerEmail", "✉️ " + CONFIG.email);
+  const fEmail = document.getElementById("footerEmail");
+  if (fEmail) fEmail.innerHTML = `✉️ <a href="mailto:${esc(CONFIG.email)}">${esc(CONFIG.email)}</a>`;
   set("footerAreas", "🗺️ " + CONFIG.areasNote);
   const sup = CONFIG.support || {};
   const supEmail = sup.email || CONFIG.email;
-  if (sup.phone) set("footerPhone", "📞 " + sup.phone);
-  if (sup.whatsapp) set("footerWhats", "💬 WhatsApp: +" + sup.whatsapp);
+  const fPhone = document.getElementById("footerPhone");
+  if (sup.phone && fPhone) fPhone.innerHTML = `📞 <a href="tel:${esc(sup.phone.replace(/[^+\d]/g, ""))}">${esc(sup.phone)}</a>`;
+  const fWhats = document.getElementById("footerWhats");
+  if (sup.whatsapp && fWhats) fWhats.innerHTML = `💬 <a href="https://wa.me/${esc(sup.whatsapp.replace(/\D/g, ""))}" target="_blank" rel="noopener">WhatsApp: +${esc(sup.whatsapp)}</a>`;
   if (CONFIG.hours) set("footerHours", "🕒 " + CONFIG.hours);
   const phoneCard = document.getElementById("contactPhoneCard");
   const whatsCard = document.getElementById("contactWhatsCard");

@@ -217,6 +217,7 @@ img{max-width:100%}
 .footer-brand p{margin-top:10px}
 .footer-col h4{color:#fff;font-size:15px;margin-bottom:12px}
 .footer-col a{display:block;color:#b9c9d6;text-decoration:none;padding:3px 0}
+.footer-col p a{display:inline;padding:0;text-decoration:underline}
 .footer-col a:hover{color:var(--gold)}
 .footer-col p{padding:3px 0}
 .footer-bottom{border-top:1px solid #274154;padding-top:16px;padding-bottom:16px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:13px}
