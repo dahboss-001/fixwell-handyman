@@ -512,3 +512,9 @@ img{max-width:100%}
 @media (max-width:640px){
   .appt-form,.complete-form{flex-direction:column;align-items:stretch}
 }
+
+/* patch-005: properties & history forms */
+.dash-subhead { margin: 22px 0 10px; font-size: 1.05rem; }
+.hist-form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.hist-form input, .hist-form select { flex: 1 1 140px; min-width: 0; }
+.hist-list { margin-top: 6px; }

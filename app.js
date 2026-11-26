@@ -56,19 +56,20 @@ const CONFIG = {
   ],
 
   annualSavingsPct: 20,
+  // HOME CARE PLANS - prices are PLACEHOLDERS to be validated with the client.
   plans: [
-    { name: "Home Basic", monthly: 5000, discount: 5, popular: false,
+    { name: "Basic", monthly: 5000, discount: 5, popular: false,
       desc: "For small flats and light use",
       features: ["Quarterly home inspection", "5% off all call-outs", "Priority scheduling over walk-ins", "In-app support"] },
-    { name: "Home Plus", monthly: 9000, discount: 10, popular: true,
-      desc: "Our most chosen home plan",
+    { name: "Premium", monthly: 9000, discount: 10, popular: true,
+      desc: "For busy homes that want regular care",
       features: ["Monthly home inspection", "10% off all call-outs", "Free minor fixes during visits", "Reminder before each visit", "In-app support"] },
-    { name: "Family Estate", monthly: 15000, discount: 15, popular: false,
-      desc: "Cover up to 2 homes on one plan",
-      features: ["Everything in Home Plus", "Covers 2 homes", "15% off all call-outs", "Family priority line"] },
-    { name: "Business Care", monthly: 25000, discount: 20, popular: false,
+    { name: "Landlord", monthly: 15000, discount: 15, popular: false,
+      desc: "Cover up to 2 rental properties on one plan",
+      features: ["Everything in Premium", "Covers 2 properties", "15% off all call-outs", "Service history kept per property"] },
+    { name: "Business", monthly: 25000, discount: 20, popular: false,
       desc: "For shops, offices and rentals",
-      features: ["Monthly servicing visit", "20% off all call-outs", "Priority emergency response", "Quarterly safety check", "Dedicated account contact"] },
+      features: ["Monthly servicing visit", "20% off all call-outs", "Quarterly safety check", "Dedicated account contact"] },
   ],
 
   artisanPlans: [
@@ -184,7 +185,7 @@ function renderPlans() {
       <div class="plan-price">${fmt(price)}<small>${per}${annual ? ", billed annually" : ", billed monthly"}</small></div>
       <span class="plan-discount">${p.discount}% off call-outs</span>
       <ul>${p.features.map(f => `<li>${esc(f)}</li>`).join("")}</ul>
-      <a href="#/subscribe?plan=${i}&billing=${annual ? "annual" : "monthly"}" class="btn ${p.popular ? "btn-primary" : "btn-outline"} btn-block nav-route">Subscribe in the app</a>
+      <a href="#/subscribe?plan=${i}&billing=${annual ? "annual" : "monthly"}" class="btn ${p.popular ? "btn-primary" : "btn-outline"} btn-block nav-route">Request this plan</a>
     </div>`;
   }).join("");
   document.querySelectorAll(".plan-card:not(.popular) .btn-outline").forEach(b => {
