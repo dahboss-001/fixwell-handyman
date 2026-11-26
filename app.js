@@ -93,7 +93,7 @@ const CONFIG = {
   // purchases from manual test mode to real checkout. Secret key never
   // goes here; it lives as a Supabase secret used by the verify function.
   paystack: {
-    publicKey: "",        // PLACEHOLDER - pk_test_... or pk_live_...
+    publicKey: "pk_test_d02d6fb7ea37b4c0ca0186ed55e76a74337bc407", // TEST key - swap for pk_live_... at go-live
   },
 
   faqs: [
