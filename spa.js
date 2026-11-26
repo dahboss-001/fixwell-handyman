@@ -744,6 +744,7 @@ async function creditsView() {
         <span class="wallet-label">credit${bal === 1 ? "" : "s"} available · unlocking a customer contact costs ${CONFIG.credits.unlockCost} credit${CONFIG.credits.unlockCost === 1 ? "" : "s"}</span>
       </div>
       ${!payLive ? `<div class="testmode-banner">⚠️ TEST MODE - no payment is taken. You pick a pack, the Fixwell team confirms it manually, and the credits land in your wallet.</div>` : ""}
+      ${payLive && CONFIG.paystack.publicKey.startsWith("pk_test") ? `<div class="testmode-banner">🧪 PAYSTACK TEST MODE - checkout runs on test keys. Use a Paystack test card; no real money moves.</div>` : ""}
       <h3 class="dash-sec">Buy credits</h3>
       <div class="credit-packs">
         ${CONFIG.credits.packages.map((k, i) => `
