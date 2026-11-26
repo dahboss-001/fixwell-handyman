@@ -238,6 +238,59 @@ const DB = {
     if (error) throw error;
   },
 
+  /* ---------- artisan teams ---------- */
+  async myTeam() {
+    const p = await this.profile();
+    const { data: teams } = await this.client.from("artisan_teams")
+      .select("*").eq("owner_id", p.id).limit(1);
+    const team = (teams || [])[0];
+    if (!team) return null;
+    const { data: members } = await this.client.from("artisan_team_members")
+      .select("*").eq("team_id", team.id).order("created_at", { ascending: true });
+    return { team, members: members || [] };
+  },
+
+  async createTeam(name) {
+    const p = await this.profile();
+    const { error } = await this.client.from("artisan_teams")
+      .insert({ owner_id: p.id, name });
+    if (error) throw error;
+  },
+
+  async addTeamMember(teamId, email) {
+    const { data, error } = await this.client.rpc("add_team_member_by_email", {
+      p_team_id: teamId, p_email: email,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  async removeTeamMember(memberRowId) {
+    const { error } = await this.client.from("artisan_team_members")
+      .delete().eq("id", memberRowId);
+    if (error) throw error;
+  },
+
+  // Teams the signed-in artisan works for (as a worker, not owner)
+  async myTeamMemberships() {
+    const p = await this.profile();
+    const { data: rows } = await this.client.from("artisan_team_members")
+      .select("team_id").eq("member_id", p.id);
+    const ids = (rows || []).map(r => r.team_id);
+    if (!ids.length) return [];
+    const { data: teams } = await this.client.from("artisan_teams")
+      .select("*").in("id", ids);
+    return teams || [];
+  },
+
+  // Company jobs: bookings assigned to a team the viewer belongs to
+  async teamJobs(ownerId) {
+    const { data } = await this.client.from("bookings")
+      .select("*").eq("artisan_id", ownerId)
+      .order("created_at", { ascending: false });
+    return data || [];
+  },
+
   async mySubscriptions() {
     const p = await this.profile();
     const { data } = await this.client.from("subscriptions")
