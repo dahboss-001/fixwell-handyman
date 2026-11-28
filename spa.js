@@ -635,7 +635,10 @@ async function artisanView(query) {
   try { myQuotes = await DB.myQuotesByBooking(); } catch (e) { /* quotes feature may not be enabled yet */ }
   const mine = leads.filter(b => b.artisan_id === p.id && !["completed", "cancelled"].includes(b.status));
   const past = leads.filter(b => b.artisan_id === p.id && ["completed", "cancelled"].includes(b.status));
-  const open = leads.filter(b => b.status === "received" && b.city === p.city && !rejected.has(b.id));
+  const cityOpen = leads.filter(b => b.status === "received" && b.city === p.city && !rejected.has(b.id));
+  const otherTrade = app.trade === "Other trade";
+  const open = cityOpen.filter(b => otherTrade || b.service === app.trade);
+  const alsoOpen = otherTrade ? [] : cityOpen.filter(b => b.service !== app.trade);
   const prePlan = query.plan != null ? CONFIG.artisanPlans[+query.plan] : null;
   const contacts = {};
   await Promise.all(leads.filter(b => unlocks.has(b.id)).map(async b => {
@@ -643,7 +646,7 @@ async function artisanView(query) {
   }));
   const cost = CONFIG.credits.unlockCost;
   const photosBy = {};
-  await Promise.all([...open, ...mine].map(async b => { photosBy[b.id] = await DB.bookingPhotos(b.id); }));
+  await Promise.all([...open, ...alsoOpen, ...mine].map(async b => { photosBy[b.id] = await DB.bookingPhotos(b.id); }));
 
   let myTeamInfo = null, myMembershipTeams = [];
   const teamJobsBy = {};
@@ -766,8 +769,11 @@ async function artisanView(query) {
           <button class="btn btn-primary btn-sm" id="confirmPlan" data-plan="${esc(prePlan.name)}" data-amount="${prePlan.amount}">Confirm plan</button>
         </div>` : ""}
       ${teamsSection}
-      <h3 class="dash-sec">Open jobs in ${esc(p.city)} (${open.length})</h3>
-      ${open.length ? open.map(leadCard).join("") : `<p class="app-sub">No open jobs right now. New bookings appear here automatically.</p>`}
+      <h3 class="dash-sec">Open ${esc(app.trade)} jobs in ${esc(p.city)} (${open.length})</h3>
+      ${open.length ? open.map(leadCard).join("") : `<p class="app-sub">No open ${esc(app.trade)} jobs right now. You get a notification the moment one is posted.</p>`}
+      ${alsoOpen.length ? `
+      <h3 class="dash-sec">Other open jobs in ${esc(p.city)} (${alsoOpen.length})</h3>
+      ${alsoOpen.map(leadCard).join("")}` : ""}
       <h3 class="dash-sec">My active jobs (${mine.length})</h3>
       ${mine.length ? mine.map(leadCard).join("") : `<p class="app-sub">Jobs you accept show up here.</p>`}
       ${past.length ? `<h3 class="dash-sec">Past jobs (${past.length})</h3>${past.map(leadCard).join("")}` : ""}
